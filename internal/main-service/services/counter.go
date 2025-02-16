@@ -24,13 +24,30 @@ func (s *GRPCCounterService) GetScanStatus(ctx context.Context, scanID string) (
 		return nil, err
 	}
 
-	return &models.StatusResponse{
-		ScanID:             scanID,
-		Status:             "in_progress",
-		DirectoriesScanned: int(counters.GetDirectoriesCount()),
-		FilesScanned:       int(counters.GetFilesCount()),
-		DirectoriesFound:   int(counters.GetDirectoriesCount()),
-		FilesFound:         int(counters.GetFilesCount()),
-		StartTime:          "TODO: get from storage",
-	}, nil
+	directoriesScanned := int(counters.GetDirectoriesCount())
+	filesScanned := int(counters.GetFilesCount())
+	directoriesFound := int(counters.GetDirectoriesCount())
+	filesFound := int(counters.GetFilesCount())
+
+	if directoriesScanned == directoriesFound && filesScanned == filesFound {
+		return &models.StatusResponse{
+			ScanID:             scanID,
+			Status:             "completed",
+			DirectoriesScanned: directoriesScanned,
+			FilesScanned:       filesScanned,
+			DirectoriesFound:   directoriesFound,
+			FilesFound:         filesFound,
+			StartTime:          "TODO: get from storage",
+		}, nil
+	} else {
+		return &models.StatusResponse{
+			ScanID:             scanID,
+			Status:             "in_progress",
+			DirectoriesScanned: directoriesScanned,
+			FilesScanned:       filesScanned,
+			DirectoriesFound:   directoriesFound,
+			FilesFound:         filesFound,
+			StartTime:          "TODO: get from storage",
+		}, nil
+	}
 }

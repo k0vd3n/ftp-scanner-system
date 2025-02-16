@@ -8,6 +8,7 @@ import (
 	"ftp-scanner_try2/api/grpc/proto"
 	"ftp-scanner_try2/internal/kafka"
 	mainservice "ftp-scanner_try2/internal/main-service"
+	service "ftp-scanner_try2/internal/main-service/services"
 
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
@@ -46,9 +47,9 @@ func main() {
 	defer counterConn.Close()
 
 	// Создаем сервисы
-	scanService := mainservice.NewKafkaScanService(kafkaProducer)
-	reportService := mainservice.NewGRPCReportService(proto.NewReportServiceClient(reportConn))
-	counterService := mainservice.NewGRPCCounterService(proto.NewCounterServiceClient(counterConn))
+	scanService := service.NewKafkaScanService(kafkaProducer)
+	reportService := service.NewGRPCReportService(proto.NewReportServiceClient(reportConn))
+	counterService := service.NewGRPCCounterService(proto.NewCounterServiceClient(counterConn))
 
 	// Создаем MainServer
 	server := mainservice.NewMainServer(scanService, reportService, counterService)
