@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package report;
+
+option go_package = "/api/grpc/proto";
+
+service ReportService {
+  rpc GenerateReport(ReportRequest) returns (ReportResponse);
+}
+
+message ReportRequest {
+  string scan_id = 1;
+}
+
+message ReportResponse {
+  string scan_id = 1;
+  string report_url = 2;
+}

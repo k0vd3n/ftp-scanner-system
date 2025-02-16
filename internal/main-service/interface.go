@@ -1,0 +1,21 @@
+package mainservice
+
+import (
+	"context"
+	"ftp-scanner_try2/internal/models"
+)
+
+// Интерфейс сервиса сканирования (Kafka Producer)
+type ScanService interface {
+	StartScan(ctx context.Context, req models.ScanRequest) (*models.ScanResponse, error)
+}
+
+// Интерфейс сервиса отчетов (gRPC Report Client)
+type ReportService interface {
+	GetReport(ctx context.Context, scanID string) (*models.ReportResponse, error)
+}
+
+// Интерфейс сервиса счетчиков (gRPC Counter Client)
+type CounterService interface {
+	GetScanStatus(ctx context.Context, scanID string) (*models.StatusResponse, error)
+}
