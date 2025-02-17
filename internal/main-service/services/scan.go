@@ -10,10 +10,10 @@ import (
 )
 
 type KafkaScanService struct {
-	producer *kafka.Producer
+	producer kafka.KafkaPoducerInterface
 }
 
-func NewKafkaScanService(producer *kafka.Producer) *KafkaScanService {
+func NewKafkaScanService(producer kafka.KafkaPoducerInterface) *KafkaScanService {
 	return &KafkaScanService{producer: producer}
 }
 
