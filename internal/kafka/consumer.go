@@ -39,6 +39,6 @@ func (c *Consumer) ReadMessage(ctx context.Context) (*models.DirectoryScanMessag
 	return &scanMsg, nil
 }
 
-func (c *Consumer) CloseReader() {
-	c.Reader.Close()
+func (c *Consumer) CloseReader() error {
+	return c.Reader.Close()
 }

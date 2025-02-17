@@ -12,14 +12,7 @@ import (
 	"ftp-scanner_try2/internal/kafka"
 )
 
-
 func main() {
-	// Подключение к FTP серверу
-	ftpClient, err := ftpclient.NewFTPClient("127.0.0.1:21", "user", "pass")
-	if err != nil {
-		log.Fatal("Ошибка подключения к FTP:", err)
-	}
-	defer ftpClient.Close()
 
 	// Создаем Kafka consumer и producer
 	consumer := kafka.NewConsumer([]string{"localhost:9092"}, "directories-to-scan", "directory-lister-group")
@@ -31,8 +24,16 @@ func main() {
 	}
 	defer producer.CloseWriter()
 
-	// Создаем сервис
+	// Подключение к FTP серверу
+	ftpClient, err := ftpclient.NewFTPClient("127.0.0.1:21", "user", "pass")
+	if err != nil {
+		log.Fatal("Ошибка подключения к FTP:", err)
+	}
+	defer ftpClient.Close()
+	// Создаем репозиторий и сервис
 	service := directorylisterservice.NewDirectoryListerService(ftpClient, producer)
+	// Создаем Kafka kafkaHandler
+	kafkaHandler := directorylisterservice.NewKafkaHandler(service, consumer)
 
 	// Канал для graceful shutdown
 	stop := make(chan os.Signal, 1)
@@ -40,30 +41,10 @@ func main() {
 
 	// Запуск обработки сообщений
 	ctx, cancel := context.WithCancel(context.Background())
-
-	go func() {
-		for {
-			select {
-			case <-stop:
-				log.Println("⏳ Завершаем работу сервиса...")
-				cancel()
-				return
-			default:
-				scanMsg, err := consumer.ReadMessage(ctx)
-				if err != nil {
-					log.Println("Ошибка чтения сообщения:", err)
-					continue
-				}
-
-				err = service.ProcessDirectory(scanMsg)
-				if err != nil {
-					log.Println("Ошибка обработки директории:", err)
-				}
-			}
-		}
-	}()
+	go kafkaHandler.Start(ctx)
 
 	// Ожидание сигнала завершения
 	<-stop
+	cancel()
 	log.Println("✅ Сервис завершил работу")
 }

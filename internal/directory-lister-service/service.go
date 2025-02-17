@@ -1,5 +1,6 @@
-package directorylisterservice
 
+package directorylisterservice
+/*
 import (
 	ftpclient "ftp-scanner_try2/internal/ftp"
 	"ftp-scanner_try2/internal/kafka"
@@ -11,14 +12,14 @@ import (
 )
 
 type DirectoryListerService struct {
-	ftpClient     ftpclient.FtpClientInterface
-	kafkaProducer kafka.KafkaPoducerInterface
+	ftpClient ftpclient.FtpClientInterface
+	producer  kafka.KafkaPoducerInterface
 }
 
 func NewDirectoryListerService(ftpClient ftpclient.FtpClientInterface, producer kafka.KafkaPoducerInterface) *DirectoryListerService {
 	return &DirectoryListerService{
-		ftpClient:     ftpClient,
-		kafkaProducer: producer,
+		ftpClient: ftpClient,
+		producer:  producer,
 	}
 }
 
@@ -51,11 +52,11 @@ func (s *DirectoryListerService) ProcessDirectory(scanMsg *models.DirectoryScanM
 			DirectoryPath: dir,
 			ScanTypes:     scanMsg.ScanTypes,
 		}
-		s.kafkaProducer.SendMessage(directoriesToScan, msg)
+		s.producer.SendMessage(directoriesToScan, msg)
 	}
 
 	// 2️ Отправляем число найденных директорий в `scan-directories-count`
-	s.kafkaProducer.SendMessage(scanDirectoriesCount, models.CountMessage{
+	s.producer.SendMessage(scanDirectoriesCount, models.CountMessage{
 		ScanID: scanMsg.ScanID,
 		Number: len(directories),
 	})
@@ -69,23 +70,25 @@ func (s *DirectoryListerService) ProcessDirectory(scanMsg *models.DirectoryScanM
 				FilePath: file,
 				ScanType: scanType,
 			}
-			s.kafkaProducer.SendMessage(filesToScan, msg)
+			s.producer.SendMessage(filesToScan, msg)
 			log.Printf("Файл %s отправлен в `%s`", filesToScan, file)
 		}
 	}
 
 	// 4️ Отправляем число файлов в `scan-files-count`
-	s.kafkaProducer.SendMessage(scanFilesCount, models.CountMessage{
+	s.producer.SendMessage(scanFilesCount, models.CountMessage{
 		ScanID: scanMsg.ScanID,
 		Number: len(files) * len(scanMsg.ScanTypes),
 	})
 	log.Printf("Отправлено количество файлов в `%s`: %d", scanFilesCount, len(files)*len(scanMsg.ScanTypes))
 
 	// 5️ Отправляем завершение сканирования директории в `scan-completed-directories-count`
-	s.kafkaProducer.SendMessage(completedDirectoriesCount, models.CountMessage{
+	s.producer.SendMessage(completedDirectoriesCount, models.CountMessage{
 		ScanID: scanMsg.ScanID,
 		Number: 1,
 	})
 
 	return nil
 }
+
+*/

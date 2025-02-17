@@ -130,12 +130,10 @@ func NewCounterServer(service CounterService) *CounterServer {
 
 // gRPC метод получения счетчиков
 func (s *CounterServer) GetCounters(ctx context.Context, req *proto.CounterRequest) (*proto.CounterResponse, error) {
-	// s.log.Infof("Received gRPC request for scan_id: %s", req.ScanId)
 	log.Printf("Получаем счетчики для scan_id: %s", req.ScanId)
 
 	counters, err := s.service.GetCounters(ctx, req.ScanId)
 	if err != nil {
-		// s.log.Errorf("Error getting counters for scan_id %s: %v", req.ScanId, err)
 		log.Printf("Ошибка получения счетчиков для scan_id %s: %v", req.ScanId, err)
 		return nil, err
 	}
