@@ -5,6 +5,7 @@ type DirectoryScanMessage struct {
 	ScanID      string   `json:"scan_id"`      // Идентификатор сканирования
 	DirectoryPath string `json:"directory_path"` // Путь к директории
 	ScanTypes    []string `json:"scan_types"`   // Типы сканирования
+	FTPConnection FTPConnection `json:"ftp_connection"`
 }
 
 // FileScanMessage представляет собой сообщение для топика `files-to-scan`.
@@ -12,6 +13,7 @@ type FileScanMessage struct {
 	ScanID   string `json:"scan_id"`   // Идентификатор сканирования
 	FilePath string `json:"file_path"` // Путь к файлу
 	ScanType string `json:"scan_type"` // Тип сканирования
+	FTPConnection FTPConnection `json:"ftp_connection"`
 }
 
 // ScanResultMessage представляет собой сообщение для топика `scan-results`.

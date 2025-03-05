@@ -2,6 +2,7 @@ package mongodb
 
 import (
 	"context"
+	"ftp-scanner_try2/config"
 	"ftp-scanner_try2/internal/models"
 )
 
@@ -9,6 +10,14 @@ type ReportRepository interface {
 	GetReportsByScanID(ctx context.Context, scanID string) ([]models.ScanReport, error)
 }
 
-type CounterRepository interface {
-	GetCountersByScanID(ctx context.Context,  scanID string) (*models.CounterResponseGRPC, error)
+type GetCounterRepository interface {
+	GetCountersByScanID(ctx context.Context, scanID string, config config.MongoCounterSvcConfig) (*models.CounterResponseGRPC, error)
+}
+
+type CounterReducerRepository interface {
+	InsertReducedCounters(ctx context.Context, counts []models.CountMessage) error
+}
+
+type SaveReportRepository interface {
+	InsertScanReports(ctx context.Context, reports []models.ScanReport) error
 }

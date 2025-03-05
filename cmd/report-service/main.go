@@ -52,7 +52,7 @@ import (
 	"context"
 	"ftp-scanner_try2/api/grpc/proto"
 	"ftp-scanner_try2/internal/mongodb"
-	"ftp-scanner_try2/internal/report-service"
+	reportservice "ftp-scanner_try2/internal/scan-reports-service"
 	"log"
 	"net"
 	"os"
@@ -63,13 +63,15 @@ import (
 )
 
 func main() {
-	mongoURI := os.Getenv("MONGODB_URI")
+	mongoURI := os.Getenv("MONGO_URI")
+	mongoCollection := os.Getenv("MONGO_COLLECTION_REPORTS")
+	mongoDatabase := os.Getenv("MONGO_DATABASE_REPORTS")
 
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		log.Fatalf("Failed to connect to MongoDB: %v", err)
 	}
-	repo := mongodb.NewMongoReportRepository(client, "testdb", "scan_reports")
+	repo := mongodb.NewMongoReportRepository(client, mongoDatabase, mongoCollection)
 	storage := reportservice.NewFileReportStorage("reports")
 
 	service := reportservice.NewReportService(repo, storage)

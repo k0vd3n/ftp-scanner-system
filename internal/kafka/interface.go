@@ -10,7 +10,22 @@ type KafkaPoducerInterface interface {
 	CloseWriter() error
 }
 
-type KafkaConsumerInterface interface {
+type KafkaDirectoryConsumerInterface interface {
 	ReadMessage(ctx context.Context) (*models.DirectoryScanMessage, error)
+	CloseReader() error
+}
+
+type KafkaFileConsumerInterface interface {
+	ReadMessage(ctx context.Context) (*models.FileScanMessage, error)
+	CloseReader() error
+}
+
+type KafkaCounterConsumerInterface interface {
+	ReadMessages(ctx context.Context, batchSize int) ([]models.CountMessage, error)
+	CloseReader() error
+}
+
+type KafkaScanResultConsumerInterface interface {
+	ReadMessages(ctx context.Context, batchSize int) ([]models.ScanResultMessage, error)
 	CloseReader() error
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"ftp-scanner_try2/api/grpc/proto"
+	"ftp-scanner_try2/config"
 	"ftp-scanner_try2/internal/kafka"
 	mainservice "ftp-scanner_try2/internal/main-service"
 	service "ftp-scanner_try2/internal/main-service/services"
@@ -23,9 +24,13 @@ func main() {
 
 	grpcReportServerAddress := os.Getenv("GRPC_REPORT_SERVER_ADDRESS")
 	grpcCounterServerAddress := os.Getenv("GRPC_COUNTER_SERVER_ADDRESS")
+	kafkaBroker := os.Getenv("KAFKA_DIR_LIST_SVC_BROKER")
+	scanDirectoriesTopic := os.Getenv("KAFKA_DIR_LIST_SVC_TOPIC")
+	mainServiceHTTTPPort := os.Getenv("MAIN_SERVICE_HTTP_PORT")
+	directoriesToScanTopic := os.Getenv("KAFKA_DIR_LIST_SVC_TOPIC")
 
 	// Инициализация Kafka Producer
-	kafkaProducer, err := kafka.NewProducer("kafka:9092") // Адрес Kafka брокера
+	kafkaProducer, err := kafka.NewProducer(kafkaBroker, scanDirectoriesTopic) // Адрес Kafka брокера
 	if err != nil {
 		log.Fatalf("Failed to create Kafka producer: %v", err)
 	}
@@ -47,7 +52,10 @@ func main() {
 	defer counterConn.Close()
 
 	// Создаем сервисы
-	scanService := service.NewKafkaScanService(kafkaProducer)
+	configScanDirTopic := config.DirectoryListerConfig{
+		DirectoriesToScanTopic: directoriesToScanTopic,
+	}
+	scanService := service.NewKafkaScanService(kafkaProducer, configScanDirTopic)
 	reportService := service.NewGRPCReportService(proto.NewReportServiceClient(reportConn))
 	counterService := service.NewGRPCCounterService(proto.NewCounterServiceClient(counterConn))
 
@@ -58,8 +66,8 @@ func main() {
 	router := server.SetupRouter()
 
 	// Запуск HTTP сервера
-	log.Println("Main Service is running on port 8080")
-	if err := http.ListenAndServe(":8080", router); err != nil {
+	log.Printf("Main Service is running on port %s", mainServiceHTTTPPort)
+	if err := http.ListenAndServe(mainServiceHTTTPPort, router); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

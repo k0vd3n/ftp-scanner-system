@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"ftp-scanner_try2/api/grpc/proto"
-	counterservice "ftp-scanner_try2/internal/counter-service"
+	"ftp-scanner_try2/config"
+	counterservice "ftp-scanner_try2/internal/counter-reports-service"
 	"ftp-scanner_try2/internal/mongodb"
 	"log"
 	"net"
@@ -21,8 +22,8 @@ func main() {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
-	mongoURI := os.Getenv("MONGODB_URI")
-	mongoDB := os.Getenv("MONGODB_DATABASE")
+	mongoURI := os.Getenv("MONGO_URI")
+	mongoDB := os.Getenv("MONGO_DATABASE_COUNTER")
 	counterServicePort := os.Getenv("COUNTER_SERVICE_PORT")
 	/*
 	   // Инициализация MongoDB
@@ -63,7 +64,13 @@ func main() {
 
 	repo := mongodb.NewMongoCounterRepository(client, mongoDB)
 	service := counterservice.NewCounterService(repo)
-	server := counterservice.NewCounterServer(service)
+	config := config.MongoCounterSvcConfig{
+		ScanDirectoriesCount:      os.Getenv("SCAN_DIRECTORIES_COUNT"),
+		ScanFilesCount:            os.Getenv("SCAN_FILES_COUNT"),
+		CompletedDirectoriesCount: os.Getenv("COMPLETED_DIRECTORIES_COUNT"),
+		CompletedFilesCount:       os.Getenv("KAFKA_COMPLETED_FILES_COUNT_TOPIC"),
+	}
+	server := counterservice.NewCounterServer(service, config)
 
 	lis, err := net.Listen("tcp", counterServicePort)
 	if err != nil {

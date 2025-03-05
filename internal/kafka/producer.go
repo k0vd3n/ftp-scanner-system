@@ -12,10 +12,10 @@ type Producer struct {
 	writer *kafka.Writer
 }
 
-func NewProducer(broker string) (*Producer, error) {
+func NewProducer(broker string, topic string) (KafkaPoducerInterface, error) {
 	writer := &kafka.Writer{
 		Addr:  kafka.TCP(broker),
-		Topic: "directories-to-scan", // Топик по умолчанию
+		Topic: topic, // Топик по умолчанию
 	}
 
 	return &Producer{

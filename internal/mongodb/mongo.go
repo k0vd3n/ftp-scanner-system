@@ -2,9 +2,9 @@ package mongodb
 
 import (
 	"context"
+	"ftp-scanner_try2/config"
 	"ftp-scanner_try2/internal/models"
 	"log"
-	"os"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,7 +18,7 @@ type MongoReportRepository struct {
 	collection string
 }
 
-func NewMongoReportRepository(client *mongo.Client, database, collection string) *MongoReportRepository {
+func NewMongoReportRepository(client *mongo.Client, database, collection string) ReportRepository {
 	return &MongoReportRepository{
 		client:     client,
 		database:   database,
@@ -54,7 +54,7 @@ type mongoCounterRepository struct {
 }
 
 // Конструктор репозитория
-func NewMongoCounterRepository(client *mongo.Client, database string) CounterRepository {
+func NewMongoCounterRepository(client *mongo.Client, database string) GetCounterRepository {
 	return &mongoCounterRepository{
 		client:   client,
 		database: database,
@@ -62,16 +62,11 @@ func NewMongoCounterRepository(client *mongo.Client, database string) CounterRep
 }
 
 // Метод получения счетчиков
-func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID string) (*models.CounterResponseGRPC, error) {
+func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID string, config config.MongoCounterSvcConfig) (*models.CounterResponseGRPC, error) {
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
-
-	scanDirectoriesCount := os.Getenv("SCAN_DIRECTORIES_COUNT")
-	scanFilesCount := os.Getenv("SCAN_FILES_COUNT")
-	completedDirectoriesCount := os.Getenv("COMPLETED_DIRECTORIES_COUNT")
-	completedFilesCount := os.Getenv("COMPLETED_FILES_COUNT")
 
 	counters := &models.CounterResponseGRPC{ScanID: scanID}
 
@@ -81,10 +76,10 @@ func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID
 	}
 
 	mappings := []counterMapping{
-		{scanDirectoriesCount, &counters.DirectoriesCount},
-		{scanFilesCount, &counters.FilesCount},
-		{completedDirectoriesCount, &counters.CompletedDirectories},
-		{completedFilesCount, &counters.CompletedFiles},
+		{config.ScanDirectoriesCount, &counters.DirectoriesCount},
+		{config.ScanFilesCount, &counters.FilesCount},
+		{config.CompletedDirectoriesCount, &counters.CompletedDirectories},
+		{config.CompletedFilesCount, &counters.CompletedFiles},
 	}
 
 	for _, mapping := range mappings {
@@ -112,4 +107,68 @@ func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID
 	}
 
 	return counters, nil
+}
+
+type MongoCounterRepository struct {
+	client     *mongo.Client
+	database   string
+	collection string
+}
+
+func NewCounterRepository(client *mongo.Client, database, collection string) CounterReducerRepository {
+	return &MongoCounterRepository{
+		client:     client,
+		database:   database,
+		collection: collection,
+	}
+}
+
+func (r *MongoCounterRepository) InsertReducedCounters(ctx context.Context, counts []models.CountMessage) error {
+	collection := r.client.Database(r.database).Collection(r.collection)
+
+	var documents []interface{}
+	for _, count := range counts {
+		documents = append(documents, count)
+	}
+
+	_, err := collection.InsertMany(ctx, documents)
+	if err != nil {
+		log.Printf("Ошибка вставки данных в коллекцию %s: %v\n", r.collection, err)
+		return err
+	}
+
+	log.Printf("Успешно вставлено %d документов в коллекцию %s\n", len(documents), r.collection)
+	return nil
+}
+
+type MongoSaveReportRepository struct {
+	client     *mongo.Client
+	database   string
+	collection string
+}
+
+func NewMongoSaveReportRepository(client *mongo.Client, database, collection string) SaveReportRepository {
+	return &MongoSaveReportRepository{
+		client:     client,
+		database:   database,
+		collection: collection,
+	}
+}
+
+func (r *MongoSaveReportRepository) InsertScanReports(ctx context.Context, reports []models.ScanReport) error {
+	collection := r.client.Database(r.database).Collection(r.collection)
+
+	var docs []interface{}
+	for _, report := range reports {
+		docs = append(docs, report)
+	}
+
+	_, err := collection.InsertMany(ctx, docs)
+	if err != nil {
+		log.Printf("Ошибка при вставке отчетов: %v", err)
+		return err
+	}
+
+	log.Printf("Успешно вставлено %d отчетов", len(docs))
+	return nil
 }

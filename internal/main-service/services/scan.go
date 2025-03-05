@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"ftp-scanner_try2/config"
 	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/models"
 	"log"
@@ -11,10 +12,14 @@ import (
 
 type KafkaScanService struct {
 	producer kafka.KafkaPoducerInterface
+	config   config.DirectoryListerConfig
 }
 
-func NewKafkaScanService(producer kafka.KafkaPoducerInterface) *KafkaScanService {
-	return &KafkaScanService{producer: producer}
+func NewKafkaScanService(producer kafka.KafkaPoducerInterface, config config.DirectoryListerConfig) *KafkaScanService {
+	return &KafkaScanService{
+		producer: producer,
+		config:   config,
+	}
 }
 
 func (s *KafkaScanService) StartScan(ctx context.Context, req models.ScanRequest) (*models.ScanResponse, error) {
@@ -24,11 +29,17 @@ func (s *KafkaScanService) StartScan(ctx context.Context, req models.ScanRequest
 		ScanID:        scanID,
 		DirectoryPath: req.DirectoryPath,
 		ScanTypes:     req.ScanTypes,
+		FTPConnection: models.FTPConnection{
+			Server:   req.FTPServer,
+			Port:     req.FTPPort,
+			Username: req.FTPUsername,
+			Password: req.FTPPassword,
+		},
 	}
 
 	log.Printf("Sending scan request to Kafka: %v", msg)
 
-	if err := s.producer.SendMessage("directories-to-scan", msg); err != nil {
+	if err := s.producer.SendMessage(s.config.DirectoriesToScanTopic, msg); err != nil {
 		log.Printf("Failed to send Kafka message: %v", err)
 		return nil, err
 	}

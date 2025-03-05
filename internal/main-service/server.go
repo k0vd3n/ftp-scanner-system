@@ -2,10 +2,8 @@ package mainservice
 
 import (
 	"context"
-	"fmt"
 	"ftp-scanner_try2/internal/models"
 	"log"
-	"time"
 )
 
 /*
@@ -22,7 +20,7 @@ type MainServer struct {
 	counterServiceClient CounterService
 }
 
-func NewMainServer(scanService ScanService, reportService ReportService, counterService CounterService) *MainServer {
+func NewMainServer(scanService ScanService, reportService ReportService, counterService CounterService) MainServiceInterface {
 	return &MainServer{
 		scanServiceClient:    scanService,
 		reportServiceClient:  reportService,
@@ -76,11 +74,6 @@ func (s *MainServer) GetScanStatus(ctx context.Context, scanID string) (*models.
 	}
 
 	return response, nil
-}
-
-func generateScanID() string {
-	// Пример генерации уникального scan_id
-	return fmt.Sprintf("scan-%d", time.Now().UnixNano())
 }
 
 func (s *MainServer) GetReport(ctx context.Context, scanID string) (*models.ReportResponse, error) {

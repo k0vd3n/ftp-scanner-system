@@ -22,9 +22,10 @@ type ScanResponse struct {
 
 // FTPConnection представляет собой информацию о подключении к FTP.
 type FTPConnection struct {
-	Server   string `json:"server"`   // Адрес FTP-сервера
-	Port     int    `json:"port"`     // Порт FTP-сервера
-	Username string `json:"username"` // Имя пользователя FTP
+	Server   string `json:"ftp_server"`   // Адрес FTP-сервера
+	Port     int    `json:"ftp_port"`     // Порт FTP-сервера
+	Username string `json:"ftp_username"` // Имя пользователя FTP
+	Password string `json:"ftp_password"` // Пароль FTP
 }
 
 // StatusRequest представляет собой запрос на получение состояния сканирования.

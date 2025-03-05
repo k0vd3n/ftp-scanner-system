@@ -3,7 +3,7 @@ package counterservice
 import (
 	"context"
 	"ftp-scanner_try2/api/grpc/proto"
-	"ftp-scanner_try2/internal/models"
+	"ftp-scanner_try2/config"
 	"log"
 )
 
@@ -110,21 +110,22 @@ func (s *CounterServer) GetCounters(ctx context.Context, req *proto.CounterReque
 }
 */
 
-// Интерфейс сервиса счётчиков
-type CounterService interface {
-	GetCounters(ctx context.Context, scanID string) (*models.CounterResponseGRPC, error)
+type CounterServerInterface interface {
+	proto.CounterServiceServer
 }
 
 // структура для gRPC сервера
 type CounterServer struct {
 	proto.UnimplementedCounterServiceServer
 	service CounterService
+	config  config.MongoCounterSvcConfig
 }
 
 // Конструктор сервера
-func NewCounterServer(service CounterService) *CounterServer {
+func NewCounterServer(service CounterService, config config.MongoCounterSvcConfig) CounterServerInterface {
 	return &CounterServer{
 		service: service,
+		config:  config,
 	}
 }
 
@@ -132,7 +133,7 @@ func NewCounterServer(service CounterService) *CounterServer {
 func (s *CounterServer) GetCounters(ctx context.Context, req *proto.CounterRequest) (*proto.CounterResponse, error) {
 	log.Printf("Получаем счетчики для scan_id: %s", req.ScanId)
 
-	counters, err := s.service.GetCounters(ctx, req.ScanId)
+	counters, err := s.service.GetCounters(ctx, req.ScanId, s.config)
 	if err != nil {
 		log.Printf("Ошибка получения счетчиков для scan_id %s: %v", req.ScanId, err)
 		return nil, err
