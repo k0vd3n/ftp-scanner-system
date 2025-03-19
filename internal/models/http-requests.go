@@ -12,12 +12,12 @@ type ScanRequest struct {
 
 // ScanResponsоe представляет сбой ответ на запрос сканирования.
 type ScanResponse struct {
-	ScanID       string        `json:"scan_id"`       // Идентификатор сканирования
-	Status       string        `json:"status"`        // Статус сканирования
-	Message      string        `json:"message"`       // Сообщение
-// Ниже под вопросом
-	FTPConnection FTPConnection `json:"ftp_connection"` // Информация о подключении к FTP
-	StartTime    string        `json:"start_time"`    // Время начала сканирования
+	ScanID  string `json:"scan_id"` // Идентификатор сканирования
+	Status  string `json:"status"`  // Статус сканирования
+	Message string `json:"message"` // Сообщение
+	// Ниже под вопросом
+	// FTPConnection FTPConnection `json:"ftp_connection"` // Информация о подключении к FTP
+	StartTime string `json:"start_time"` // Время начала сканирования
 }
 
 // FTPConnection представляет собой информацию о подключении к FTP.
@@ -35,13 +35,13 @@ type StatusRequest struct {
 
 // StatusResponse представляет собой ответ с состоянием сканирования.
 type StatusResponse struct {
-	ScanID           string `json:"scan_id"`            // Идентификатор сканирования
-	Status           string `json:"status"`             // Статус сканирования
+	ScanID             string `json:"scan_id"`             // Идентификатор сканирования
+	Status             string `json:"status"`              // Статус сканирования
 	DirectoriesScanned int    `json:"directories_scanned"` // Количество обработанных директорий
-	FilesScanned      int    `json:"files_scanned"`      // Количество обработанных файлов
-	DirectoriesFound  int    `json:"directories_found"`  // Количество найденных директорий
-	FilesFound        int    `json:"files_found"`        // Количество найденных файлов
-	StartTime        string `json:"start_time"`         // Время начала сканирования
+	FilesScanned       int    `json:"files_scanned"`       // Количество обработанных файлов
+	DirectoriesFound   int    `json:"directories_found"`   // Количество найденных директорий
+	FilesFound         int    `json:"files_found"`         // Количество найденных файлов
+	StartTime          string `json:"start_time"`          // Время начала сканирования
 }
 
 // ReportRequest представляет собой запрос на получение отчета.

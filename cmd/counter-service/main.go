@@ -24,37 +24,9 @@ func main() {
 
 	mongoURI := os.Getenv("MONGO_URI")
 	mongoDB := os.Getenv("MONGO_DATABASE_COUNTER")
-	counterServicePort := os.Getenv("COUNTER_SERVICE_PORT")
-	/*
-	   // Инициализация MongoDB
-	   server, err := counterservice.NewCounterServer(mongoURI)
+	counterServicePort := os.Getenv("GRPC_REPORT_SERVER_PORT")
 
-	   	if err != nil {
-	   		log.Fatalf("Failed to initialize CounterServer: %v", err)
-	   	}
-
-	   	defer func() {
-	   		if err := server.MongoClient.Disconnect(context.Background()); err != nil {
-	   			log.Fatalf("Failed to disconnect MongoDB client: %v", err)
-	   		}
-	   	}()
-
-	   // Запуск gRPC сервера
-	   lis, err := net.Listen("tcp", counterServicePort)
-
-	   	if err != nil {
-	   		log.Fatalf("Failed to listen: %v", err)
-	   	}
-
-	   grpcServer := grpc.NewServer()
-	   proto.RegisterCounterServiceServer(grpcServer, server)
-
-	   log.Printf("Counter Service is running on port %s", counterServicePort)
-
-	   	if err := grpcServer.Serve(lis); err != nil {
-	   		log.Fatalf("Failed to serve: %v", err)
-	   	}
-	*/
+	log.Printf("Counter Service: main: mongoURI: %s", mongoURI)
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		// logger.Fatalf("Failed to connect to MongoDB: %v", err)

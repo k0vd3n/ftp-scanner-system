@@ -12,10 +12,13 @@ type Producer struct {
 	writer *kafka.Writer
 }
 
-func NewProducer(broker string, topic string) (KafkaPoducerInterface, error) {
+func NewProducer(broker string) (KafkaPoducerInterface, error) {
 	writer := &kafka.Writer{
 		Addr:  kafka.TCP(broker),
-		Topic: topic, // Топик по умолчанию
+		// Topic: topic, // Топик по умолчанию
+		Balancer: &kafka.LeastBytes{},
+		BatchSize: 1,
+		BatchTimeout: 0,
 	}
 
 	return &Producer{

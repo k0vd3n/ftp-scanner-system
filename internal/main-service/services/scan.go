@@ -23,6 +23,7 @@ func NewKafkaScanService(producer kafka.KafkaPoducerInterface, config config.Dir
 }
 
 func (s *KafkaScanService) StartScan(ctx context.Context, req models.ScanRequest) (*models.ScanResponse, error) {
+	log.Printf("Main-service: scan: startScan: Начало сканирования...")
 	scanID := generateScanID()
 
 	msg := models.DirectoryScanMessage{
@@ -37,24 +38,24 @@ func (s *KafkaScanService) StartScan(ctx context.Context, req models.ScanRequest
 		},
 	}
 
-	log.Printf("Sending scan request to Kafka: %v", msg)
+	log.Printf("Main-service: scan: startScan: Отправка Kafka сообщения: %v", msg)
 
 	if err := s.producer.SendMessage(s.config.DirectoriesToScanTopic, msg); err != nil {
-		log.Printf("Failed to send Kafka message: %v", err)
+		log.Printf("Main-service: scan: startScan: Ошибка отправки Kafka сообщения: %v", err)
 		return nil, err
 	}
 
-	log.Printf("Scan request sent successfully: scan_id=%s", scanID)
+	log.Printf("Main-service: scan: startScan: Запрос на сканирование принят в обработку. scan_id=%s", scanID)
 
 	return &models.ScanResponse{
 		ScanID:  scanID,
 		Status:  "accepted",
 		Message: "Запрос на сканирование принят в обработку.",
-		FTPConnection: models.FTPConnection{
-			Server:   req.FTPServer,
-			Port:     req.FTPPort,
-			Username: req.FTPUsername,
-		},
+		// FTPConnection: models.FTPConnection{
+		// 	Server:   req.FTPServer,
+		// 	Port:     req.FTPPort,
+		// 	Username: req.FTPUsername,
+		// },
 		StartTime: time.Now().Format(time.RFC3339),
 	}, nil
 }

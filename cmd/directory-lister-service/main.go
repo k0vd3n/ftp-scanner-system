@@ -60,7 +60,7 @@ func main() {
 	consumer := kafka.NewDirectoryConsumer(consumerConfig.Brokers, consumerConfig.Topic, consumerConfig.GroupId)
 	defer consumer.CloseReader()
 
-	producer, err := kafka.NewProducer(producerConfig.Broker, producerConfig.DirectoriesToScanTopic)
+	producer, err := kafka.NewProducer(producerConfig.Broker, )
 	if err != nil {
 		log.Fatal("Ошибка создания Kafka producer:", err)
 	}

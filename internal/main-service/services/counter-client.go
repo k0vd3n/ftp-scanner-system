@@ -16,20 +16,27 @@ func NewGRPCCounterService(client proto.CounterServiceClient) *GRPCCounterServic
 }
 
 func (s *GRPCCounterService) GetScanStatus(ctx context.Context, scanID string) (*models.StatusResponse, error) {
-	log.Printf("Fetching scan status for scan_id=%s", scanID)
+	log.Printf("Main-service: counter-client: getScanStatus: Получение статуса сканирования для scan_id=%s", scanID)
 
 	counters, err := s.client.GetCounters(ctx, &proto.CounterRequest{ScanId: scanID})
 	if err != nil {
-		log.Printf("Failed to fetch scan status for scan_id=%s: %v", scanID, err)
+		log.Printf("MainService: counter-client: getScanStatus: Ошибка получения счетчиков для scan_id=%s: %v", scanID, err)
 		return nil, err
 	}
+
+	log.Printf("Main-service: counter-client: getScanStatus: Счетчики получены для scan_id=%s: %+v", scanID, counters)
 
 	directoriesScanned := int(counters.GetDirectoriesCount())
 	filesScanned := int(counters.GetFilesCount())
 	directoriesFound := int(counters.GetDirectoriesCount())
 	filesFound := int(counters.GetFilesCount())
+	log.Printf("Main-service: counter-client: getScanStatus: directoriesScanned=%d", directoriesScanned)
+	log.Printf("Main-service: counter-client: getScanStatus: filesScanned=%d", filesScanned)
+	log.Printf("Main-service: counter-client: getScanStatus: directoriesFound=%d", directoriesFound)
+	log.Printf("Main-service: counter-client: getScanStatus: filesFound=%d", filesFound)
 
 	if directoriesScanned == directoriesFound && filesScanned == filesFound {
+		log.Printf("Main-service: counter-client: getScanStatus: Сканирование завершено для scan_id=%s", scanID)
 		return &models.StatusResponse{
 			ScanID:             scanID,
 			Status:             "completed",
@@ -40,6 +47,7 @@ func (s *GRPCCounterService) GetScanStatus(ctx context.Context, scanID string) (
 			StartTime:          "TODO: get from storage",
 		}, nil
 	} else {
+		log.Printf("Main-service: counter-client: getScanStatus: Сканирование в процессе для scan_id=%s", scanID)
 		return &models.StatusResponse{
 			ScanID:             scanID,
 			Status:             "in_progress",

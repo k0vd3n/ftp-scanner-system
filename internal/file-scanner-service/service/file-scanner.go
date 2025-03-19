@@ -2,6 +2,7 @@ package service
 
 import (
 	"ftp-scanner_try2/config"
+	"ftp-scanner_try2/internal/file-scanner-service/scanner"
 	ftpclient "ftp-scanner_try2/internal/ftp"
 	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/models"
@@ -15,21 +16,23 @@ type FileScannerService interface {
 }
 
 type fileScannerService struct {
-	// ftpClient  ftpclient.FtpClientInterface
-	producer kafka.KafkaPoducerInterface
-	// scannerMap map[string]scanner.FileScanner
-	config config.FilesScannerConfig
+	scanResultProducer kafka.KafkaScanResultPoducerInterface
+	counterProducer    kafka.KafkaPoducerInterface
+	config             config.FilesScannerConfig
+	scannerMap         map[string]scanner.FileScanner
 }
 
-func NewFileScannerService( /*ftpClient ftpclient.FtpClientInterface,*/ producer kafka.KafkaPoducerInterface, config config.FilesScannerConfig) FileScannerService {
-	// scannerMap := make(map[string]scanner.FileScanner)
-	// scannerMap["zero_bytes"] = scanner.NewZeroBytesScanner() // Регистрируем сканер для нулевых байтов
-
+func NewFileScannerService(
+	scanResultProducer kafka.KafkaScanResultPoducerInterface,
+	counterProducer kafka.KafkaPoducerInterface,
+	config config.FilesScannerConfig,
+	scannerMap map[string]scanner.FileScanner,
+) FileScannerService {
 	return &fileScannerService{
-		// ftpClient:  ftpClient,
-		producer: producer,
-		// scannerMap: scannerMap,
-		config: config,
+		scanResultProducer: scanResultProducer,
+		counterProducer:    counterProducer,
+		config:             config,
+		scannerMap:         scannerMap,
 	}
 }
 
@@ -48,7 +51,7 @@ func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpCli
 	}
 
 	// Сканируем файл
-	scanner, exists := s.config.ScannerTypesMap[scanMsg.ScanType]
+	scanner, exists := s.scannerMap[scanMsg.ScanType]
 	if !exists {
 		log.Printf("Тип сканирования не поддерживается: %s", scanMsg.ScanType)
 		return nil
@@ -61,15 +64,15 @@ func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpCli
 	}
 
 	// Отправляем результат в Kafka
-	s.producer.SendMessage(s.config.ScanResultsTopic, models.ScanResultMessage{
+	s.scanResultProducer.SendMessage(models.ScanResultMessage{
 		ScanID:   scanMsg.ScanID,
 		FilePath: scanMsg.FilePath,
 		ScanType: scanMsg.ScanType,
 		Result:   result,
 	})
 
-	// Отправляем счетчик завершенных файлов
-	s.producer.SendMessage(s.config.CompletedFilesCountTopic, models.CountMessage{
+	// Отправляем количество завершенных файлов
+	s.counterProducer.SendMessage(s.config.CompletedFilesCountTopic, models.CountMessage{
 		ScanID: scanMsg.ScanID,
 		Number: 1,
 	})

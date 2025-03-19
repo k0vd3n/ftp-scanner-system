@@ -7,8 +7,9 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
-	"ftp-scanner_try2/internal/counter-reducer-service"
+	counterreducerservice "ftp-scanner_try2/internal/counter-reducer-service"
 	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/mongodb"
 
@@ -28,6 +29,7 @@ func main() {
 	topic := os.Getenv("KAFKA_REDUCER_TOPIC")
 	groupID := os.Getenv("KAFKA_COUNTER_GROUP_ID")
 	batchSize, _ := strconv.Atoi(os.Getenv("COUNTER_REDUCER_BATCH_SIZE"))
+	duration, _ := strconv.Atoi(os.Getenv("COUNTER_REDUCER_CYCLE_DURATION"))
 
 	// Настройка MongoDB
 	mongoURI := os.Getenv("MONGO_URI")
@@ -53,7 +55,7 @@ func main() {
 
 	go func() {
 		for {
-			messages, err := consumer.ReadMessages(ctx, batchSize)
+			messages, err := consumer.ReadMessages(ctx, batchSize, time.Duration(duration)*time.Second)
 			if err != nil {
 				log.Printf("Ошибка чтения сообщений: %v", err)
 				continue

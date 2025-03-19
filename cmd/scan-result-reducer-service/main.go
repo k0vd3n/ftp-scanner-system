@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -29,6 +30,10 @@ func main() {
 	batchSize, err := strconv.Atoi(os.Getenv("KAFKA_BATCH_SIZE"))
 	if err != nil {
 		log.Fatalf("Ошибка преобразования переменной KAFKA_BATCH_SIZE: %v", err)
+	}
+	duration, err := strconv.Atoi(os.Getenv("KAFKA_REDUCER_CYCLE_DURATION"))
+	if err != nil {
+		log.Fatalf("Ошибка преобразования переменной KAFKA_REDUCER_CYCLE_DURATION: %v", err)
 	}
 
 	// Настройка MongoDB
@@ -61,7 +66,7 @@ func main() {
 	// Горутинa для обработки сообщений
 	go func() {
 		for {
-			messages, err := consumer.ReadMessages(ctx, batchSize)
+			messages, err := consumer.ReadMessages(ctx, batchSize, time.Duration(duration)*time.Second)
 			if err != nil {
 				log.Printf("Ошибка чтения сообщений из Kafka: %v", err)
 				continue
@@ -79,5 +84,5 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 	cancel()
-	log.Println("Сервис scan-result-reducer завершил работу")
+	log.Println("Сервис завершил работу")
 }

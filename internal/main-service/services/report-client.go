@@ -16,15 +16,15 @@ func NewGRPCReportService(client proto.ReportServiceClient) *GRPCReportService {
 }
 
 func (s *GRPCReportService) GetReport(ctx context.Context, scanID string) (*models.ReportResponse, error) {
-	log.Printf("Requesting report for scan_id=%s", scanID)
+	log.Printf("Main-service: report-client: getReport: Получение отчета для scan_id=%s", scanID)
 	
 	report, err := s.client.GenerateReport(ctx, &proto.ReportRequest{ScanId: scanID})
 	if err != nil {
-		log.Printf("Failed to get report for scan_id=%s: %v", scanID, err)
+		log.Printf("Main-service: report-client: getReport: Ошибка получения отчета для scan_id=%s: %v", scanID, err)
 		return nil, err
 	}
 
-	log.Printf("Report retrieved successfully for scan_id=%s", scanID)
+	log.Printf("Main-service: report-client: getReport: Отчет получен для scan_id=%s", scanID)
 
 	return &models.ReportResponse{
 		ScanID:    scanID,

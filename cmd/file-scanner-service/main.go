@@ -25,12 +25,11 @@ func main() {
 
 	// Конфигурация Kafka consumer
 	consumerBrokers := []string{os.Getenv("KAFKA_FILE_SCAN_SVC_BROKER")}
-	topic := os.Getenv("KAFKA_FILE_SCAN_SVC_TOPIC")
+	filesToScanTopic := os.Getenv("KAFKA_FILE_SCAN_SVC_TOPIC")
 	groupID := os.Getenv("KAFKA_FILE_SCAN_SVC_GROUP_ID")
 
 	// Конфигурация Kafka producer
 	producerBroker := os.Getenv("KAFKA_FILE_SCAN_SVC_BROKER")
-	scanResultsTopic := os.Getenv("KAFKA_FILE_SCAN_RESULTS_TOPIC")
 	completedFilesCountTopic := os.Getenv("KAFKA_COMPLETED_FILES_COUNT_TOPIC")
 
 	// Папка для скачанных файлов и права доступа
@@ -40,34 +39,76 @@ func main() {
 	// Инициализация consumer и producer
 	consumerConfig := config.KafkaConsumerConfig{
 		Brokers: consumerBrokers,
-		Topic:   topic,
+		Topic:   filesToScanTopic,
 		GroupId: groupID,
 	}
 
-	scannerTypesMap := map[string]scanner.FileScanner{
-		"zero_bytes": scanner.NewZeroBytesScanner(),
+	// Создание мапы сканеров на основе ScannerTypes из конфига
+	scannerTypes := []string{"zero_bytes"} // Пример, можно загрузить из переменных окружения
+	scannerMap := make(map[string]scanner.FileScanner)
+	for _, st := range scannerTypes {
+		switch st {
+		case "zero_bytes":
+			scannerMap[st] = scanner.NewZeroBytesScanner()
+		}
+	}
+
+	// allTopics := config.SizeBasedRouterTopics{
+	// 	AllScanResultsTopic: os.Getenv("KAFKA_FILE_SCAN_RESULTS_TOPIC"),
+	// 	EmptyResultTopic:    os.Getenv("KAFKA_TOPIC_EMPTY_RESULT"),
+	// 	SmallResultTopic:    os.Getenv("KAFKA_TOPIC_SMALL_RESULT"),
+	// 	MediumResultTopic:   os.Getenv("KAFKA_TOPIC_MEDIUM_RESULT"),
+	// 	LargeResultTopic:    os.Getenv("KAFKA_TOPIC_LARGE_RESULT"),
+	// }
+
+	// Загрузка правил маршрутизации из конфига
+	// routingConfig := config.RoutingConfig{
+	// 	Rules: []config.RoutingRule{
+	// 		{
+	// 			ScanType:     "zero_bytes",
+	// 			TriggerValue: "0",
+	// 			OutputTopics: []string{os.Getenv("KAFKA_TOPIC_EMPTY_RESULT")},
+	// 		},
+	// 	},
+	// 	DefaultTopic: os.Getenv("KAFKA_FILE_SCAN_RESULTS_TOPIC"),
+	// }
+
+	routingConfig, err := config.LoadRoutingConfig("config/routing.yaml")
+	if err != nil {
+		log.Fatalf("Ошибка загрузки конфига маршрутизации: %v", err)
 	}
 
 	producerConfig := config.FilesScannerConfig{
 		Broker:                   producerBroker,
-		ScanResultsTopic:         scanResultsTopic,
 		CompletedFilesCountTopic: completedFilesCountTopic,
 		PathForDownloadedFiles:   downloadPath,
 		Permision:                permission,
-		ScannerTypesMap:          scannerTypesMap,
+		ScannerTypesMap:          scannerTypes,
+		Routing:                  *routingConfig,
 	}
 
 	consumer := kafka.NewFileConsumer(consumerConfig.Brokers, consumerConfig.Topic, consumerConfig.GroupId)
 	defer consumer.CloseReader()
 
-	producer, err := kafka.NewProducer(producerConfig.Broker, producerConfig.ScanResultsTopic)
+	scanResultProducer, err := kafka.NewScanResultProducer(producerConfig.Broker, producerConfig.Routing)
 	if err != nil {
-		log.Fatalf("Ошибка создания Kafka producer: %v", err)
+		log.Fatalf("Ошибка создания Kafka scan result producer: %v", err)
 	}
-	defer producer.CloseWriter()
+	defer scanResultProducer.CloseWriter()
 
-	// Создаем сервис сканирования файлов
-	fileScannerService := filescannerservice.NewFileScannerService(producer, producerConfig)
+	counterProducer, err := kafka.NewProducer(producerConfig.Broker)
+	if err != nil {
+		log.Fatalf("Ошибка создания Kafka counter producer: %v", err)
+	}
+	defer counterProducer.CloseWriter()
+
+	// Создаем сервис
+	fileScannerService := filescannerservice.NewFileScannerService(
+		scanResultProducer,
+		counterProducer,
+		producerConfig,
+		scannerMap,
+	)
 
 	// Создаем Kafka handler
 	kafkaHandler := handler.NewKafkaHandler(fileScannerService, consumer)
@@ -84,4 +125,5 @@ func main() {
 	<-stop
 	cancel()
 	log.Println("file-scanner-service завершил работу")
+
 }
