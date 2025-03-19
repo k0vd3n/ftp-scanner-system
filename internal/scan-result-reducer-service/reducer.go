@@ -20,27 +20,33 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 	scanMap := make(map[string]*models.ScanReport)
 
 	for _, msg := range messages {
+		// Проверяем, существует ли отчет для данного scan_id
 		if _, exists := scanMap[msg.ScanID]; !exists {
 			scanMap[msg.ScanID] = &models.ScanReport{
 				ScanID:      msg.ScanID,
 				Directories: []models.Directory{},
 			}
 		}
+
+		// Получаем указатель на текущий отчет
 		currentReport := scanMap[msg.ScanID]
 
-		dir, subDirs, _ := splitPath(msg.FilePath)
-		var currentDir *models.Directory
+		// Разбиваем путь на директории и имя файла
+		fullPath, dirs, _ := splitPath(msg.FilePath)
 
+		// Проверяем, есть ли уже такая директория
+		var currentDir *models.Directory
 		for i := range currentReport.Directories {
-			if currentReport.Directories[i].Directory == dir {
+			if currentReport.Directories[i].Directory == fullPath {
 				currentDir = &currentReport.Directories[i]
 				break
 			}
 		}
 
+		// Если директории нет, создаем ее с абсолютным путем
 		if currentDir == nil {
 			newDir := models.Directory{
-				Directory:    dir,
+				Directory:    fullPath,
 				Subdirectory: []models.Directory{},
 				Files:        []models.File{},
 			}
@@ -48,9 +54,11 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 			currentDir = &currentReport.Directories[len(currentReport.Directories)-1]
 		}
 
-		basePath := ""
-		for _, subDir := range subDirs {
-			basePath += basePath + "/" + subDir
+		// Обрабатываем поддиректории, создавая полные пути,
+		// начинаем с корневого пути fullPath, а не с пустой строки
+		basePath := fullPath
+		for _, dir := range dirs {
+			basePath = basePath + "/" + dir
 			found := false
 			for i := range currentDir.Subdirectory {
 				if currentDir.Subdirectory[i].Directory == basePath {
@@ -60,14 +68,17 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 				}
 			}
 			if !found {
-				newSubDir := models.Directory{
-					Directory: basePath,
+				newDir := models.Directory{
+					Directory:    basePath,
+					Subdirectory: []models.Directory{},
+					Files:        []models.File{},
 				}
-				currentDir.Subdirectory = append(currentDir.Subdirectory, newSubDir)
+				currentDir.Subdirectory = append(currentDir.Subdirectory, newDir)
 				currentDir = &currentDir.Subdirectory[len(currentDir.Subdirectory)-1]
 			}
 		}
 
+		// Добавляем файл в текущую директорию
 		fileExists := false
 		for i := range currentDir.Files {
 			if currentDir.Files[i].Path == msg.FilePath {
@@ -80,7 +91,7 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 			}
 		}
 		if !fileExists {
-			currentDir.Files = append(currentDir.Files, models.File{
+			newFile := models.File{
 				Path: msg.FilePath,
 				ScanResults: []models.ScanResult{
 					{
@@ -88,27 +99,32 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 						Result: msg.Result,
 					},
 				},
-			})
+			}
+			currentDir.Files = append(currentDir.Files, newFile)
 		}
 	}
 
-	var results []models.ScanReport
+	// Преобразуем map в слайс для JSON-ответа
+	var groupedResults []models.ScanReport
 	for _, report := range scanMap {
-		results = append(results, *report)
+		groupedResults = append(groupedResults, *report)
 	}
-	return results
+	return groupedResults
 }
 
-// Разбиваем путь на абсолютный, список директорий и имя файла
+// Разбиваем путь на абсолютный путь, список директорий и имя файла
 func splitPath(filePath string) (string, []string, string) {
 	parts := strings.Split(filePath, "/")
 	if len(parts) < 2 {
 		return filePath, nil, ""
 	}
-	root := "/" + parts[1]          // Первым элементом должен быть корневой каталог
-	fileName := parts[len(parts)-1] // Имя файла
+	root := "/" + parts[1]           // Корневой каталог
+	fileName := parts[len(parts)-1]   // Имя файла
+
+	// Если есть поддиректории, исключаем дублирование корневой директории
 	if len(parts) > 2 {
-		return root, parts[1 : len(parts)-1], fileName // Полные поддиректории без имени файла
+		// parts[1] соответствует корневой директории, поэтому начинаем с parts[2]
+		return root, parts[2 : len(parts)-1], fileName
 	}
 	return root, nil, fileName
 }
