@@ -1,6 +1,7 @@
 package directorylisterservice
 
 import (
+	"fmt"
 	"ftp-scanner_try2/config"
 	ftpclient "ftp-scanner_try2/internal/ftp"
 	"ftp-scanner_try2/internal/kafka"
@@ -35,7 +36,7 @@ func (s *directoryListerService) ProcessDirectory(scanMsg *models.DirectoryScanM
 	}
 
 	// Подключение к FTP серверу
-	ftpClient, err := ftpclient.NewFTPClient(scanMsg.FTPConnection.Server, scanMsg.FTPConnection.Username, scanMsg.FTPConnection.Password)
+	ftpClient, err := ftpclient.NewFTPClient(fmt.Sprintf("%s:%d", scanMsg.FTPConnection.Server, scanMsg.FTPConnection.Port), scanMsg.FTPConnection.Username, scanMsg.FTPConnection.Password)
 	if err != nil {
 		log.Fatal("Ошибка подключения к FTP:", err)
 	}
@@ -77,9 +78,9 @@ func (s *directoryListerService) ProcessDirectory(scanMsg *models.DirectoryScanM
 	for _, file := range files {
 		for _, scanType := range scanMsg.ScanTypes {
 			msg := models.FileScanMessage{
-				ScanID:   scanMsg.ScanID,
-				FilePath: file,
-				ScanType: scanType,
+				ScanID:        scanMsg.ScanID,
+				FilePath:      file,
+				ScanType:      scanType,
 				FTPConnection: ftpConnection,
 			}
 			s.producer.SendMessage(s.config.FilesToScanTopic, msg)

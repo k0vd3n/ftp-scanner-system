@@ -15,6 +15,7 @@ import (
 )
 
 func main() {
+	log.Printf("Directory Lister Service: main: Загрузка переменных окружения...")
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
@@ -25,11 +26,11 @@ func main() {
 	groupID := os.Getenv("KAFKA_DIR_LIST_SVC_GROUP_ID")
 
 	producerBroker := os.Getenv("KAFKA_DIR_LIST_SVC_BROKER")
-	directoriesToScanTopic := os.Getenv("KAFKA_DIR_LIST_SVC_TOPIC")
-	scanDirectoriesCountTopic := os.Getenv("KAFKA_DIR_LIST_SVC_TOPIC")
-	filesToScanTopic := os.Getenv("KAFKA_DIR_LIST_SVC_TOPIC")
-	scanFilesCountTopic := os.Getenv("KAFKA_DIR_LIST_SVC_TOPIC")
-	completedDirectoriesCountTopic := os.Getenv("KAFKA_DIR_LIST_SVC_TOPIC")
+	directoriesToScanTopic := os.Getenv("DIRECTORIES_TO_SCAN")
+	scanDirectoriesCountTopic := os.Getenv("SCAN_DIRECTORIES_COUNT")
+	filesToScanTopic := os.Getenv("FILES_TO_SCAN")
+	scanFilesCountTopic := os.Getenv("SCAN_FILES_COUNT")
+	completedDirectoriesCountTopic := os.Getenv("COMPLETED_DIRECTORIES_COUNT")
 
 	// ftpHost := os.Getenv("FTP_HOST")
 	// ftpUser := os.Getenv("FTP_USER")
@@ -56,6 +57,7 @@ func main() {
 	// 	Password: ftpPassword,
 	// }
 
+	log.Printf("Directory Lister Service: main: Загрузка конфигурации...")
 	// Создаем Kafka consumer и producer
 	consumer := kafka.NewDirectoryConsumer(consumerConfig.Brokers, consumerConfig.Topic, consumerConfig.GroupId)
 	defer consumer.CloseReader()
@@ -84,6 +86,7 @@ func main() {
 
 	// Запуск обработки сообщений
 	ctx, cancel := context.WithCancel(context.Background())
+	log.Printf("Directory Lister Service: main: Запуск обработки сообщений...")
 	go kafkaHandler.Start(ctx, producerConfig)
 
 	// Ожидание сигнала завершения

@@ -24,6 +24,7 @@ func NewFileConsumer(brokers []string, topic, groupID string) KafkaFileConsumerI
 }
 
 func (c *FileConsumer) ReadMessage(ctx context.Context) (*models.FileScanMessage, error) {
+	log.Printf("File-consumer: Чтение сообщений из Kafka...") 
 	msg, err := c.Reader.ReadMessage(ctx)
 	if err != nil {
 		return nil, err
@@ -32,13 +33,15 @@ func (c *FileConsumer) ReadMessage(ctx context.Context) (*models.FileScanMessage
 	var scanMsg models.FileScanMessage
 	err = json.Unmarshal(msg.Value, &scanMsg)
 	if err != nil {
+		log.Printf("File-consumer: Ошибка при разборе сообщения: %v", err)
 		return nil, err
 	}
 
-	log.Printf(" Получено сообщение: %+v\n", scanMsg)
+	log.Printf("File-consumer: Получено сообщение: %+v\n", scanMsg)
 	return &scanMsg, nil
 }
 
 func (c *FileConsumer) CloseReader() error {
+	log.Println("File-consumer: Закрытие Kafka-консьюмера...")
 	return c.Reader.Close()
 }

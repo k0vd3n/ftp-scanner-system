@@ -27,6 +27,7 @@ func NewProducer(broker string) (KafkaPoducerInterface, error) {
 }
 
 func (p *Producer) SendMessage(topic string, message interface{}) error {
+	log.Printf("Producer: Отправка сообщения в Kafka...")
 	// Сериализация сообщения в JSON
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
@@ -39,13 +40,15 @@ func (p *Producer) SendMessage(topic string, message interface{}) error {
 		Value: msgBytes,
 	})
 	if err != nil {
+		log.Printf("Producer: Ошибка при отправке сообщения в Kafka: %v", err)
 		return err
 	}
 
-	log.Printf("Message sent to topic %s: %v", topic, message)
+	log.Printf("Producer: Сообщение отправлено в топик %s: %v", topic, message)
 	return nil
 }
 
 func (p *Producer) CloseWriter() error {
+	log.Println("Producer: Закрытие Kafka-продусера...")
 	return p.writer.Close()
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"ftp-scanner_try2/internal/file-scanner-service/service"
 	ftpclient "ftp-scanner_try2/internal/ftp"
 	"ftp-scanner_try2/internal/kafka"
@@ -28,6 +29,7 @@ func (h *KafkaHandler) Start(ctx context.Context) {
 	host := ""
 	user := ""
 	password := ""
+	port := 0
 	ftpClient := ftpclient.FtpClientInterface(nil)
 	for {
 		select {
@@ -40,14 +42,15 @@ func (h *KafkaHandler) Start(ctx context.Context) {
 				log.Println("Ошибка чтения сообщения:", err)
 				continue
 			}
-			if scanMsg.FTPConnection.Server != host || scanMsg.FTPConnection.Username != user || scanMsg.FTPConnection.Password != password {
-				ftpClient, err = ftpclient.NewFTPClient(scanMsg.FTPConnection.Server, scanMsg.FTPConnection.Username, scanMsg.FTPConnection.Password)
+			if scanMsg.FTPConnection.Server != host || scanMsg.FTPConnection.Port != port || scanMsg.FTPConnection.Username != user || scanMsg.FTPConnection.Password != password {
+				ftpClient, err = ftpclient.NewFTPClient(fmt.Sprintf("%s:%d", scanMsg.FTPConnection.Server, scanMsg.FTPConnection.Port), scanMsg.FTPConnection.Username, scanMsg.FTPConnection.Password)
 				if err != nil {
 					log.Fatal("Ошибка подключения к FTP:", err)
 				}
 				host = scanMsg.FTPConnection.Server
 				user = scanMsg.FTPConnection.Username
 				password = scanMsg.FTPConnection.Password
+				port = scanMsg.FTPConnection.Port
 			}
 
 			err = h.service.ProcessFile(scanMsg, ftpClient)

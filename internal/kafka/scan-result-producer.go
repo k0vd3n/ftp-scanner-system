@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"ftp-scanner_try2/config"
 	"ftp-scanner_try2/internal/models"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -37,21 +38,26 @@ func NewScanResultProducer(
 }
 
 func (k *KafkaScanResultProducer) SendMessage(message models.ScanResultMessage) error {
+	log.Printf("Scan-result-producer: Отправка сообщения в Kafka...")
 	topics := k.determineTopics(message)
+	log.Printf("Scan-result-producer: Топики: %v", topics)
 	for _, topic := range topics {
 		err := k.sendToTopic(topic, message)
 		if err != nil {
-			return fmt.Errorf("failed to send message to topic %s: %v", topic, err)
+			return fmt.Errorf("scan-result-producer: Ошибка при отправке сообщения в Kafka %s: %v", topic, err)
 		}
 	}
+	log.Printf("Scan-result-producer: Сообщение отправлено в топик %s: %v", topics, message)
 	return nil
 }
 
 func (k *KafkaScanResultProducer) CloseWriter() error {
+	log.Println("Scan-result-producer: Закрытие Kafka-продусера...")
 	return k.writer.Close()
 }
 
 func (k *KafkaScanResultProducer) determineTopics(msg models.ScanResultMessage) []string {
+	log.Printf("Scan-result-producer: Определение топиков...")
 	// Всегда добавляем топик по умолчанию
 	topics := []string{k.routingRules.DefaultTopic}
 
@@ -98,6 +104,7 @@ func (k *KafkaScanResultProducer) isRuleTriggered(rule config.RoutingRule, resul
 func (k *KafkaScanResultProducer) sendToTopic(topic string, msg models.ScanResultMessage) error {
 	jsonMsg, err := json.Marshal(msg)
 	if err != nil {
+		log.Printf("Scan-result-producer: Ошибка при сериализации сообщения: %v", err)
 		return err
 	}
 

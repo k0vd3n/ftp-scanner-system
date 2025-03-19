@@ -17,12 +17,14 @@ import (
 )
 
 func main() {
+	log.Println("file-scanner-service: Запуск сервиса сканирования файлов...")
 	// Загружаем переменные окружения из .env
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+		log.Fatalf("file-scanner-service: Error loading .env file: %v", err)
 	}
 
+	log.Println("file-scanner-service: Загрузка переменных окружения...")
 	// Конфигурация Kafka consumer
 	consumerBrokers := []string{os.Getenv("KAFKA_FILE_SCAN_SVC_BROKER")}
 	filesToScanTopic := os.Getenv("KAFKA_FILE_SCAN_SVC_TOPIC")
@@ -36,6 +38,7 @@ func main() {
 	downloadPath := os.Getenv("FILE_SCAN_DOWNLOAD_PATH")
 	permission := os.FileMode(0755)
 
+	log.Println("file-scanner-service: создание конфига консьюмера...")
 	// Инициализация consumer и producer
 	consumerConfig := config.KafkaConsumerConfig{
 		Brokers: consumerBrokers,
@@ -43,6 +46,7 @@ func main() {
 		GroupId: groupID,
 	}
 
+	log.Printf("file-scanner-service: создание мапы сканеров на основе ScannerTypes из конфига...")
 	// Создание мапы сканеров на основе ScannerTypes из конфига
 	scannerTypes := []string{"zero_bytes"} // Пример, можно загрузить из переменных окружения
 	scannerMap := make(map[string]scanner.FileScanner)
@@ -73,9 +77,10 @@ func main() {
 	// 	DefaultTopic: os.Getenv("KAFKA_FILE_SCAN_RESULTS_TOPIC"),
 	// }
 
+	log.Printf("file-scanner-service: Загрузка конфига маршрутизации...")
 	routingConfig, err := config.LoadRoutingConfig("config/routing.yaml")
 	if err != nil {
-		log.Fatalf("Ошибка загрузки конфига маршрутизации: %v", err)
+		log.Fatalf("file-scanner-service: Ошибка загрузки конфига маршрутизации: %v", err)
 	}
 
 	producerConfig := config.FilesScannerConfig{
@@ -87,21 +92,25 @@ func main() {
 		Routing:                  *routingConfig,
 	}
 
+	log.Printf("file-scanner-service: Создание Kafka consumer...")
 	consumer := kafka.NewFileConsumer(consumerConfig.Brokers, consumerConfig.Topic, consumerConfig.GroupId)
 	defer consumer.CloseReader()
 
+	log.Printf("file-scanner-service: Создание Kafka scan result producer...")
 	scanResultProducer, err := kafka.NewScanResultProducer(producerConfig.Broker, producerConfig.Routing)
 	if err != nil {
-		log.Fatalf("Ошибка создания Kafka scan result producer: %v", err)
+		log.Fatalf("file-scanner-service: Ошибка создания Kafka scan result producer: %v", err)
 	}
 	defer scanResultProducer.CloseWriter()
 
+	log.Printf("file-scanner-service: Создание Kafka counter producer...")
 	counterProducer, err := kafka.NewProducer(producerConfig.Broker)
 	if err != nil {
-		log.Fatalf("Ошибка создания Kafka counter producer: %v", err)
+		log.Fatalf("file-scanner-service: Ошибка создания Kafka counter producer: %v", err)
 	}
 	defer counterProducer.CloseWriter()
 
+	log.Printf("file-scanner-service: Создание сервиса...")
 	// Создаем сервис
 	fileScannerService := filescannerservice.NewFileScannerService(
 		scanResultProducer,
@@ -119,11 +128,12 @@ func main() {
 
 	// Запускаем обработку сообщений
 	ctx, cancel := context.WithCancel(context.Background())
+	log.Println("file-scanner-service: запуск обработки сообщений...")
 	go kafkaHandler.Start(ctx)
 
 	// Ожидание завершения
 	<-stop
 	cancel()
-	log.Println("file-scanner-service завершил работу")
+	log.Println("file-scanner-service: завершил работу")
 
 }

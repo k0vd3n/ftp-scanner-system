@@ -25,6 +25,7 @@ func NewDirectoryConsumer(brokers []string, topic, groupID string) KafkaDirector
 }
 
 func (c *DirectoryConsumer) ReadMessage(ctx context.Context) (*models.DirectoryScanMessage, error) {
+	log.Printf("Directory-consumer: Чтение сообщений из Kafka...")
 	msg, err := c.Reader.ReadMessage(ctx)
 	if err != nil {
 		return nil, err
@@ -36,10 +37,11 @@ func (c *DirectoryConsumer) ReadMessage(ctx context.Context) (*models.DirectoryS
 		return nil, err
 	}
 
-	log.Printf(" Получено сообщение: %+v\n", scanMsg)
+	log.Printf("Directory-consumer: Получено сообщение: %+v\n", scanMsg)
 	return &scanMsg, nil
 }
 
 func (c *DirectoryConsumer) CloseReader() error {
+	log.Println("Directory-consumer: Закрытие Kafka-консьюмера...")
 	return c.Reader.Close()
 }

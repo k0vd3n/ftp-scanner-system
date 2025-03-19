@@ -27,11 +27,13 @@ func NewMongoReportRepository(client *mongo.Client, database, collection string)
 }
 
 func (r *MongoReportRepository) GetReportsByScanID(ctx context.Context, scanID string) ([]models.ScanReport, error) {
+	log.Printf("MongoDB: Получение отчетов по ID скана: %s\n", scanID)
 	collection := r.client.Database(r.database).Collection(r.collection)
 	filter := bson.M{"scan_id": scanID}
 
 	cursor, err := collection.Find(ctx, filter)
 	if err != nil {
+		log.Printf("MongoDB: Ошибка при получении отчетов: %v\n", err)
 		return nil, err
 	}
 	defer cursor.Close(ctx)
@@ -40,6 +42,7 @@ func (r *MongoReportRepository) GetReportsByScanID(ctx context.Context, scanID s
 	for cursor.Next(ctx) {
 		var report models.ScanReport
 		if err := cursor.Decode(&report); err != nil {
+			log.Printf("MongoDB: Ошибка при декодировании отчета: %v\n", err)
 			return nil, err
 		}
 		reports = append(reports, report)
@@ -63,8 +66,10 @@ func NewMongoCounterRepository(client *mongo.Client, database string) GetCounter
 
 // Метод получения счетчиков
 func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID string, config config.MongoCounterSvcConfig) (*models.CounterResponseGRPC, error) {
+	log.Printf("MongoDB: Получение счетчиков для ID скана: %s\n", scanID)
 	err := godotenv.Load()
 	if err != nil {
+		log.Printf("MongoDB: Ошибка при загрузке переменных окружения: %v\n", err)
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
@@ -88,6 +93,7 @@ func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID
 
 		cursor, err := collection.Find(ctx, filter)
 		if err != nil {
+			log.Printf("MongoDB: Ошибка при получении счетчиков: %v\n", err)
 			return nil, err
 		}
 		defer cursor.Close(ctx)
@@ -98,6 +104,7 @@ func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID
 				Number int64 `bson:"number"`
 			}
 			if err := cursor.Decode(&data); err != nil {
+				log.Printf("MongoDB: Ошибка при декодировании счетчика: %v\n", err)
 				return nil, err
 			}
 			total += data.Number
@@ -106,6 +113,7 @@ func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID
 		*mapping.TargetField = total
 	}
 
+	log.Printf("MongoDB: Успешное получение счетчиков для ID скана: %s\n", scanID)
 	return counters, nil
 }
 
@@ -124,6 +132,7 @@ func NewCounterRepository(client *mongo.Client, database, collection string) Cou
 }
 
 func (r *MongoCounterRepository) InsertReducedCounters(ctx context.Context, counts []models.CountMessage) error {
+	log.Printf("MongoDB: Вставка счетчиков в коллекцию %s\n", r.collection)
 	collection := r.client.Database(r.database).Collection(r.collection)
 
 	var documents []interface{}
@@ -133,11 +142,11 @@ func (r *MongoCounterRepository) InsertReducedCounters(ctx context.Context, coun
 
 	_, err := collection.InsertMany(ctx, documents)
 	if err != nil {
-		log.Printf("Ошибка вставки данных в коллекцию %s: %v\n", r.collection, err)
+		log.Printf("MongoDB: Ошибка вставки данных в коллекцию %s: %v\n", r.collection, err)
 		return err
 	}
 
-	log.Printf("Успешно вставлено %d документов в коллекцию %s\n", len(documents), r.collection)
+	log.Printf("MongoDB: Успешно вставлено %d документов в коллекцию %s\n", len(documents), r.collection)
 	return nil
 }
 
@@ -156,6 +165,7 @@ func NewMongoSaveReportRepository(client *mongo.Client, database, collection str
 }
 
 func (r *MongoSaveReportRepository) InsertScanReports(ctx context.Context, reports []models.ScanReport) error {
+	log.Printf("MongoDB: Вставка отчетов в коллекцию %s\n", r.collection)
 	collection := r.client.Database(r.database).Collection(r.collection)
 
 	var docs []interface{}
@@ -165,10 +175,10 @@ func (r *MongoSaveReportRepository) InsertScanReports(ctx context.Context, repor
 
 	_, err := collection.InsertMany(ctx, docs)
 	if err != nil {
-		log.Printf("Ошибка при вставке отчетов: %v", err)
+		log.Printf("MongoDB: Ошибка при вставке отчетов: %v", err)
 		return err
 	}
 
-	log.Printf("Успешно вставлено %d отчетов", len(docs))
+	log.Printf("MongoDB: Успешно вставлено %d отчетов", len(docs))
 	return nil
 }

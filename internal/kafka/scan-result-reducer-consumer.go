@@ -25,6 +25,7 @@ func NewScanResultConsumer(brokers []string, topic, groupID string) KafkaScanRes
 }
 
 func (c *ScanResultConsumer) ReadMessages(ctx context.Context, batchSize int, duration time.Duration) ([]models.ScanResultMessage, error) {
+	log.Printf("scan-result-reducer-consumer: Чтение сообщений из Kafka...")
 	var messages []models.ScanResultMessage
 
 	// Установка тайм-аута через контекст
@@ -34,7 +35,7 @@ func (c *ScanResultConsumer) ReadMessages(ctx context.Context, batchSize int, du
 	for i := 0; i < batchSize; i++ {
 		select {
 		case <-ctx.Done(): // Если время истекло, выходим из цикла
-			log.Println("Тайм-аут: прекращаем чтение сообщений")
+			log.Println("scan-result-reducer-consumer: Тайм-аут: прекращаем чтение сообщений")
 			return messages, nil
 		default:
 			msg, err := c.Reader.ReadMessage(ctx)
@@ -44,7 +45,7 @@ func (c *ScanResultConsumer) ReadMessages(ctx context.Context, batchSize int, du
 
 			var resultMsg models.ScanResultMessage
 			if err := json.Unmarshal(msg.Value, &resultMsg); err != nil {
-				log.Printf("Ошибка при разборе сообщения: %v", err)
+				log.Printf("scan-result-reducer-consumer: Ошибка при разборе сообщения: %v", err)
 				continue
 			}
 
@@ -53,9 +54,11 @@ func (c *ScanResultConsumer) ReadMessages(ctx context.Context, batchSize int, du
 
 	}
 
+	log.Printf("scan-result-reducer-consumer: Получено сообщений: %d\n", len(messages))
 	return messages, nil
 }
 
 func (c *ScanResultConsumer) CloseReader() error {
+	log.Println("scan-result-reducer-consumer: Закрытие Kafka-консьюмера...")
 	return c.Reader.Close()
 }
