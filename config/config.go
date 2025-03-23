@@ -7,50 +7,51 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func LoadRoutingConfig(path string) (*RoutingConfig, error) {
+func LoadUnifiedConfig(path string) (*UnifiedConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-
-	var cfg struct {
-		Routing RoutingConfig `yaml:"routing"`
-	}
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	var cfg UnifiedConfig
+	err = yaml.Unmarshal(data, &cfg)
+	if err != nil {
 		return nil, err
 	}
-	return &cfg.Routing, nil
+	return &cfg, nil
 }
 
-// type DirectoryListerConfig struct {
-// 	ConsumerConfig KafkaConsumerConfig
-// 	ProducerConfig KafkaDirectoryListerProducerConfig
-// 	FTPConfig      FTPConfig
-// }
-
-type KafkaConsumerConfig struct {
-	Brokers []string
-	Topic   string
-	GroupId string
+type UnifiedConfig struct {
+	FileScannerService FileScannerConfig     `yaml:"file_scanner_service"`
+	DirectoryLister    DirectoryListerConfig `yaml:"directory_lister_service"`
+	MainService        MainServiceConfig     `yaml:"main_service"`
 }
 
-type DirectoryListerConfig struct {
-	Broker                         string
-	DirectoriesToScanTopic         string
-	ScanDirectoriesCountTopic      string
-	FilesToScanTopic               string
-	ScanFilesCountTopic            string
-	CompletedDirectoriesCountTopic string
+
+
+
+type FileScannerConfig struct {
+	KafkaConsumer                    FileScannerConsumer                    `yaml:"kafka_consumer"`
+	KafkaScanResultProducer          FileScannerProducerScanResults         `yaml:"kafka_scan_result_producer"`
+	KafkaCompletedFilesCountProducer FileScannerProducerCompletedFilesCount `yaml:"kafka_completed_files_count_producer"`
 }
 
-type FilesScannerConfig struct {
-	Broker                   string
-	Permision                fs.FileMode
-	CompletedFilesCountTopic string
-	PathForDownloadedFiles   string
-	ScannerTypesMap          []string
-	// AllTopics                SizeBasedRouterTopics
-	Routing RoutingConfig // Добавляем конфиг маршрутизации
+type FileScannerConsumer struct {
+	Brokers        []string `yaml:"brokers"`
+	ConsumerTopic string   `yaml:"consumer_topic"`
+	ConsumerGroup string   `yaml:"consumer_group"`
+}
+
+type FileScannerProducerScanResults struct {
+	Broker               string        `yaml:"broker"`
+	FileScanDownloadPath string        `yaml:"file_scan_download_path"`
+	Permision            fs.FileMode   `yaml:"permision"`
+	ScannerTypes         []string      `yaml:"scanner_types"`
+	Routing              RoutingConfig `yaml:"routing"`
+}
+
+type FileScannerProducerCompletedFilesCount struct {
+	Broker                   string `yaml:"broker"`
+	CompletedFilesCountTopic string `yaml:"completed_files_count_topic"`
 }
 
 type RoutingRule struct {
@@ -64,18 +65,47 @@ type RoutingConfig struct {
 	DefaultTopic string        `yaml:"default_topic"` // Топик по умолчанию (scan-results)
 }
 
-// type SizeBasedRouterTopics struct {
-// 	AllScanResultsTopic string
-// 	EmptyResultTopic    string
-// 	SmallResultTopic    string
-// 	MediumResultTopic   string
-// 	LargeResultTopic    string
-// }
 
-type FTPConfig struct {
-	Host     string
-	User     string
-	Password string
+
+
+type DirectoryListerConfig struct {
+	Kafka DirectoryListerKafkaConfig `yaml:"kafka"`
+}
+
+type DirectoryListerKafkaConfig struct {
+	Broker                         string `yaml:"broker"`
+	ConsumerTopic                  string `yaml:"consumer_topic"`
+	ConsumerGroup                  string `yaml:"consumer_group"`
+	DirectoriesToScanTopic         string `yaml:"directories_to_scan_topic"`
+	ScanDirectoriesCountTopic      string `yaml:"scan_directories_count_topic"`
+	FilesToScanTopic               string `yaml:"files_to_scan_topic"`
+	ScanFilesCountTopic            string `yaml:"scan_files_count_topic"`
+	CompletedDirectoriesCountTopic string `yaml:"completed_directories_count_topic"`
+}
+
+
+
+
+type MainServiceConfig struct {
+	Kafka MainServiceKafka `yaml:"kafka"`
+	GRPC  MainServiceGrpc  `yaml:"grpc"`
+	HTTP  MainServiceHttp  `yaml:"http"`
+}
+
+type MainServiceKafka struct {
+	Broker          string `yaml:"broker"`
+	DirectoryTorpic string `yaml:"directory_topic"`
+}
+
+type MainServiceGrpc struct {
+	ReportServerAddress  string `yaml:"report_server_address"`
+	ReportServerPort     string `yaml:"report_server_port"`
+	CounterServerAddress string `yaml:"counter_server_address"`
+	CounterServerPort    string `yaml:"counter_server_port"`
+}
+
+type MainServiceHttp struct {
+	Port string `yaml:"port"`
 }
 
 type MongoCounterSvcConfig struct {

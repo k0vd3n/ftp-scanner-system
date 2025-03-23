@@ -18,14 +18,14 @@ type FileScannerService interface {
 type fileScannerService struct {
 	scanResultProducer kafka.KafkaScanResultPoducerInterface
 	counterProducer    kafka.KafkaPoducerInterface
-	config             config.FilesScannerConfig
+	config             config.FileScannerConfig
 	scannerMap         map[string]scanner.FileScanner
 }
 
 func NewFileScannerService(
 	scanResultProducer kafka.KafkaScanResultPoducerInterface,
 	counterProducer kafka.KafkaPoducerInterface,
-	config config.FilesScannerConfig,
+	config config.FileScannerConfig,
 	scannerMap map[string]scanner.FileScanner,
 ) FileScannerService {
 	return &fileScannerService{
@@ -40,8 +40,8 @@ func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpCli
 	log.Printf("file-scanner-service service: Сканируем файл: %s", scanMsg.FilePath)
 
 	// Скачиваем файл
-	localDir := filepath.Join(s.config.PathForDownloadedFiles, scanMsg.ScanID)
-	if err := os.MkdirAll(localDir, s.config.Permision); err != nil {
+	localDir := filepath.Join(s.config.KafkaScanResultProducer.FileScanDownloadPath, scanMsg.ScanID)
+	if err := os.MkdirAll(localDir, s.config.KafkaScanResultProducer.Permision); err != nil {
 		log.Printf("file-scanner-service service: Ошибка при создании директории %s: %v", localDir, err)
 		return err
 	}
@@ -85,7 +85,7 @@ func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpCli
 	}
 	log.Printf("file-scanner-service service: Отправляем количество завершенных файлов: %v", countMessage)
 	// Отправляем количество завершенных файлов
-	if err := s.counterProducer.SendMessage(s.config.CompletedFilesCountTopic, countMessage); err != nil {
+	if err := s.counterProducer.SendMessage(s.config.KafkaCompletedFilesCountProducer.CompletedFilesCountTopic, countMessage); err != nil {
 		log.Printf("file-scanner-service service: Ошибка при отправке количества отсканированных файлов в Kafka: %v", err)
 		// return err
 	}

@@ -1,0 +1,52 @@
+file_scanner_service:
+  kafka_consumer:
+    brokers:
+      - "localhost:9092"
+    consumer_topic: "files-to-scan"
+    consumer_group: "file-scanner-group"
+  kafka_scan_result_producer:
+    broker: "localhost:9092"
+    file_scan_download_path: "/tmp/scan_files"
+    permission: 0755
+    scanner_types: ["zero_bytes"]
+    routing:
+      default_topic: "scan-results"
+      rules:
+        - scan_type: "zero_bytes"
+          trigger_value: "0"
+          output_topics: ["empty-result-topic"]
+        - scan_type: "zero_bytes" 
+          trigger_value: "0-256"
+          output_topics: ["small-result-topic"]
+        - scan_type: "zero_bytes"
+          trigger_value: "256-512"
+          output_topics: ["medium-result-topic"]
+        - scan_type: "zero_bytes"
+          trigger_value: "512-"
+          output_topics: ["large-result-topic"]
+  kafka_completed_files_count_producer:
+    broker: "localhost:9092"
+    completed_files_count_topic: "completed-files-count"
+
+directory_lister_service:
+  kafka:
+    broker: "localhost:9092"
+    consumer_topic: "directories-to-scan"
+    consumer_group: "dir-lister-group"
+    directories_to_scan_topic: "directories-to-scan"
+    scan_directories_count_topic: "scan-directories-count"
+    files_to_scan_topic: "files-to-scan"
+    scan_files_count_topic: "scan-files-count"
+    completed_directories_count_topic: "completed-directories-count"
+
+main_service:
+  kafka:
+    broker: "localhost:9092"
+    directory_topic: "directories-to-scan"
+  grpc:
+    report_server_address: "localhost"
+    report_server_port: ":50051"
+    counter_server_address: "localhost"
+    counter_server_port: ":50052"
+  http:
+    port: ":8080"

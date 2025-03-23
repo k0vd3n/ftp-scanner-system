@@ -11,7 +11,7 @@ import (
 )
 
 type KafkaHandlerInterface interface {
-	Start(ctx context.Context, config config.DirectoryListerConfig)
+	Start(ctx context.Context, config config.DirectoryListerKafkaConfig)
 }
 
 type KafkaHandler struct {
@@ -26,7 +26,7 @@ func NewKafkaHandler(service DirectoryListerService, consumer kafka.KafkaDirecto
 	}
 }
 
-func (h *KafkaHandler) Start(ctx context.Context, config config.DirectoryListerConfig) {
+func (h *KafkaHandler) Start(ctx context.Context, config config.DirectoryListerKafkaConfig) {
 	var (
 		currentFTPClient ftpclient.FtpClientInterface
 		currentParams    *models.FTPConnection

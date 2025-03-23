@@ -12,10 +12,10 @@ import (
 
 type KafkaScanService struct {
 	producer kafka.KafkaPoducerInterface
-	config   config.DirectoryListerConfig
+	config   config.DirectoryListerKafkaConfig
 }
 
-func NewKafkaScanService(producer kafka.KafkaPoducerInterface, config config.DirectoryListerConfig) *KafkaScanService {
+func NewKafkaScanService(producer kafka.KafkaPoducerInterface, config config.DirectoryListerKafkaConfig) *KafkaScanService {
 	return &KafkaScanService{
 		producer: producer,
 		config:   config,

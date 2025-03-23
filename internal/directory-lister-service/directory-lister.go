@@ -13,14 +13,15 @@ type DirectoryListerService interface {
 }
 
 type directoryListerService struct {
-	// ftpRepo  ftpclient.FtpClientInterface
 	producer kafka.KafkaPoducerInterface
-	config   config.DirectoryListerConfig
+	config   config.DirectoryListerKafkaConfig
 }
 
-func NewDirectoryListerService( /*ftpRepo ftpclient.FtpClientInterface,*/ producer kafka.KafkaPoducerInterface, config config.DirectoryListerConfig) DirectoryListerService {
+func NewDirectoryListerService(
+	producer kafka.KafkaPoducerInterface,
+	config config.DirectoryListerKafkaConfig,
+) DirectoryListerService {
 	return &directoryListerService{
-		// ftpRepo:  ftpRepo,
 		producer: producer,
 		config:   config,
 	}
