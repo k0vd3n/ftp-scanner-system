@@ -24,7 +24,7 @@ func NewScanResultProducer(
 	broker string,
 	routing config.RoutingConfig,
 	// topics config.SizeBasedRouterTopics,
-) (*KafkaScanResultProducer, error) {
+) (KafkaScanResultPoducerInterface, error) {
 	writer := &kafka.Writer{
 		Addr:         kafka.TCP(broker),
 		Balancer:     &kafka.LeastBytes{},
@@ -34,6 +34,7 @@ func NewScanResultProducer(
 
 	return &KafkaScanResultProducer{
 		writer: writer,
+		routingRules: routing,
 	}, nil
 }
 
@@ -46,8 +47,9 @@ func (k *KafkaScanResultProducer) SendMessage(message models.ScanResultMessage) 
 		if err != nil {
 			return fmt.Errorf("scan-result-producer: Ошибка при отправке сообщения в Kafka %s: %v", topic, err)
 		}
+		log.Printf("Scan-result-producer: Сообщение отправлено в топик %s: %v", topic, message)
 	}
-	log.Printf("Scan-result-producer: Сообщение отправлено в топик %s: %v", topics, message)
+	log.Printf("Scan-result-producer: Сообщения отправлены в топики %s: %v", topics, message)
 	return nil
 }
 

@@ -1,14 +1,11 @@
 package directorylisterservice
 
 import (
-	"fmt"
 	"ftp-scanner_try2/config"
 	ftpclient "ftp-scanner_try2/internal/ftp"
 	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/models"
 	"log"
-
-	"github.com/joho/godotenv"
 )
 
 type DirectoryListerService interface {
@@ -30,42 +27,33 @@ func NewDirectoryListerService( /*ftpRepo ftpclient.FtpClientInterface,*/ produc
 }
 
 func (s *directoryListerService) ProcessDirectory(scanMsg *models.DirectoryScanMessage, ftpRepo ftpclient.FtpClientInterface) error {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
-	}
 
-	// Подключение к FTP серверу
-	ftpClient, err := ftpclient.NewFTPClient(fmt.Sprintf("%s:%d", scanMsg.FTPConnection.Server, scanMsg.FTPConnection.Port), scanMsg.FTPConnection.Username, scanMsg.FTPConnection.Password)
-	if err != nil {
-		log.Fatal("Ошибка подключения к FTP:", err)
-	}
-	defer ftpClient.Close()
-
-	log.Printf("Сканируем директорию: %s", scanMsg.DirectoryPath)
+	log.Printf("Directory-lister-service: Сканируем директорию: %s", scanMsg.DirectoryPath)
 	directories, files, err := ftpRepo.ListDirectory(scanMsg.DirectoryPath)
 	if err != nil {
-		log.Printf("Ошибка при сканировании директории %s: %v", scanMsg.DirectoryPath, err)
+		log.Printf("Directory-lister-service: Ошибка при сканировании директории %s: %v", scanMsg.DirectoryPath, err)
 		return err
 	}
 
-	log.Printf("Найдено %d поддиректорий и %d файлов", len(directories), len(files))
-
-	// Отправляем поддиректории в топик листинга директорий
-	for _, dir := range directories {
-		msg := models.DirectoryScanMessage{
-			ScanID:        scanMsg.ScanID,
-			DirectoryPath: dir,
-			ScanTypes:     scanMsg.ScanTypes,
+	log.Printf("Directory-lister-service: Найдено %d поддиректорий и %d файлов", len(directories), len(files))
+	// Если поддиректорий не нашли, то не будем отправлять в топик листинга директорий 0
+	if len(directories) != 0 {
+		// Отправляем поддиректории в топик листинга директорий
+		for _, dir := range directories {
+			msg := models.DirectoryScanMessage{
+				ScanID:        scanMsg.ScanID,
+				DirectoryPath: dir,
+				ScanTypes:     scanMsg.ScanTypes,
+			}
+			s.producer.SendMessage(s.config.DirectoriesToScanTopic, msg)
 		}
-		s.producer.SendMessage(s.config.DirectoriesToScanTopic, msg)
-	}
 
-	// Отправляем число найденных директорий в `scan-directories-count`
-	s.producer.SendMessage(s.config.ScanDirectoriesCountTopic, models.CountMessage{
-		ScanID: scanMsg.ScanID,
-		Number: len(directories),
-	})
+		// Отправляем число найденных директорий в `scan-directories-count`
+		s.producer.SendMessage(s.config.ScanDirectoriesCountTopic, models.CountMessage{
+			ScanID: scanMsg.ScanID,
+			Number: len(directories),
+		})
+	}
 
 	ftpConnection := models.FTPConnection{
 		Server:   scanMsg.FTPConnection.Server,

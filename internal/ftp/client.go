@@ -95,3 +95,8 @@ func (c *FTPClient) Close() {
 	log.Println("ftpclient: Закрытие соединения с FTP...")
 	c.conn.Quit()
 }
+
+func (c *FTPClient) CheckConnection() error {
+    // Простая команда для проверки соединения
+    return c.conn.NoOp()
+}

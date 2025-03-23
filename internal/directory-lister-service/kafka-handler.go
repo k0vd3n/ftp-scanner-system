@@ -6,6 +6,7 @@ import (
 	"ftp-scanner_try2/config"
 	ftpclient "ftp-scanner_try2/internal/ftp"
 	"ftp-scanner_try2/internal/kafka"
+	"ftp-scanner_try2/internal/models"
 	"log"
 )
 
@@ -26,37 +27,78 @@ func NewKafkaHandler(service DirectoryListerService, consumer kafka.KafkaDirecto
 }
 
 func (h *KafkaHandler) Start(ctx context.Context, config config.DirectoryListerConfig) {
-	host := ""
-	user := ""
-	password := ""
-	port := 0
-	ftpClient := ftpclient.FtpClientInterface(nil)
+	var (
+		currentFTPClient ftpclient.FtpClientInterface
+		currentParams    *models.FTPConnection
+	)
+
+	defer func() {
+		if currentFTPClient != nil {
+			currentFTPClient.Close()
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
 			log.Println("Остановка обработки сообщений")
 			return
 		default:
-			scanMsg, err := h.consumer.ReadMessage(ctx)
+			msg, err := h.consumer.ReadMessage(ctx)
 			if err != nil {
 				log.Println("Ошибка чтения сообщения:", err)
 				continue
 			}
-			if scanMsg.FTPConnection.Server != host || scanMsg.FTPConnection.Port != port || scanMsg.FTPConnection.Username != user || scanMsg.FTPConnection.Password != password {
-				ftpClient, err = ftpclient.NewFTPClient(fmt.Sprintf("%s:%d", scanMsg.FTPConnection.Server, scanMsg.FTPConnection.Port), scanMsg.FTPConnection.Username, scanMsg.FTPConnection.Password)
-				if err != nil {
-					log.Fatal("Ошибка подключения к FTP:", err)
+
+			// Проверяем необходимость нового подключения
+			needNewConnection := currentFTPClient == nil ||
+				!compareFTPParams(currentParams, &msg.FTPConnection)
+
+			if needNewConnection {
+				if currentFTPClient != nil {
+					currentFTPClient.Close()
 				}
-				host = scanMsg.FTPConnection.Server
-				user = scanMsg.FTPConnection.Username
-				password = scanMsg.FTPConnection.Password
-				port = scanMsg.FTPConnection.Port
+
+				ftpClient, err := ftpclient.NewFTPClient(
+					fmt.Sprintf("%s:%d", msg.FTPConnection.Server, msg.FTPConnection.Port),
+					msg.FTPConnection.Username,
+					msg.FTPConnection.Password,
+				)
+
+				if err != nil {
+					log.Println("Ошибка подключения к FTP:", err)
+					continue
+				}
+
+				currentFTPClient = ftpClient
+				currentParams = &msg.FTPConnection
+				log.Println("Установлено новое FTP-соединение")
 			}
 
-			err = h.service.ProcessDirectory(scanMsg, ftpClient)
-			if err != nil {
+			// Проверка активности существующего соединения
+			if err := currentFTPClient.CheckConnection(); err != nil {
+				log.Println("Соединение неактивно, переподключаемся...")
+				currentFTPClient.Close()
+				currentFTPClient = nil
+				continue
+			}
+
+			// Обработка сообщения
+			if err := h.service.ProcessDirectory(msg, currentFTPClient); err != nil {
 				log.Println("Ошибка обработки директории:", err)
+				currentFTPClient.Close()
+				currentFTPClient = nil
 			}
 		}
 	}
+}
+
+func compareFTPParams(a *models.FTPConnection, b *models.FTPConnection) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	return a.Server == b.Server &&
+		a.Port == b.Port &&
+		a.Username == b.Username &&
+		a.Password == b.Password
 }

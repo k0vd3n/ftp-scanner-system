@@ -76,15 +76,20 @@ func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpCli
 		log.Printf("file-scanner-service service: Ошибка при отправке результата сканирования в Kafka: %v", err)
 		// return err
 	}
+	log.Printf("file-scanner-service service: Отправка результатов сканирования завершена")
 
-	// Отправляем количество завершенных файлов
-	if err := s.counterProducer.SendMessage(s.config.CompletedFilesCountTopic, models.CountMessage{
+	// сообщение количества завершенных файлов
+	countMessage := models.CountMessage{
 		ScanID: scanMsg.ScanID,
 		Number: 1,
-	}); err != nil {
+	}
+	log.Printf("file-scanner-service service: Отправляем количество завершенных файлов: %v", countMessage)
+	// Отправляем количество завершенных файлов
+	if err := s.counterProducer.SendMessage(s.config.CompletedFilesCountTopic, countMessage); err != nil {
 		log.Printf("file-scanner-service service: Ошибка при отправке количества отсканированных файлов в Kafka: %v", err)
 		// return err
 	}
+	log.Printf("file-scanner-service service: Отправка количества завершенных файлов завершена")
 
 	return nil
 }
