@@ -1,7 +1,6 @@
 package config
 
 import (
-	"io/fs"
 	"os"
 
 	"gopkg.in/yaml.v2"
@@ -21,13 +20,11 @@ func LoadUnifiedConfig(path string) (*UnifiedConfig, error) {
 }
 
 type UnifiedConfig struct {
-	FileScannerService FileScannerConfig     `yaml:"file_scanner_service"`
-	DirectoryLister    DirectoryListerConfig `yaml:"directory_lister_service"`
-	MainService        MainServiceConfig     `yaml:"main_service"`
+	FileScanner     FileScannerConfig     `yaml:"file_scanner_service"`
+	DirectoryLister DirectoryListerConfig `yaml:"directory_lister_service"`
+	MainService     MainServiceConfig     `yaml:"main_service"`
+	CounterReducer  CounterReducerConfig  `yaml:"counter_reducer_service"`
 }
-
-
-
 
 type FileScannerConfig struct {
 	KafkaConsumer                    FileScannerConsumer                    `yaml:"kafka_consumer"`
@@ -36,7 +33,7 @@ type FileScannerConfig struct {
 }
 
 type FileScannerConsumer struct {
-	Brokers        []string `yaml:"brokers"`
+	Brokers       []string `yaml:"brokers"`
 	ConsumerTopic string   `yaml:"consumer_topic"`
 	ConsumerGroup string   `yaml:"consumer_group"`
 }
@@ -44,7 +41,7 @@ type FileScannerConsumer struct {
 type FileScannerProducerScanResults struct {
 	Broker               string        `yaml:"broker"`
 	FileScanDownloadPath string        `yaml:"file_scan_download_path"`
-	Permision            fs.FileMode   `yaml:"permision"`
+	Permision            string        `yaml:"permission"`
 	ScannerTypes         []string      `yaml:"scanner_types"`
 	Routing              RoutingConfig `yaml:"routing"`
 }
@@ -65,9 +62,6 @@ type RoutingConfig struct {
 	DefaultTopic string        `yaml:"default_topic"` // Топик по умолчанию (scan-results)
 }
 
-
-
-
 type DirectoryListerConfig struct {
 	Kafka DirectoryListerKafkaConfig `yaml:"kafka"`
 }
@@ -82,9 +76,6 @@ type DirectoryListerKafkaConfig struct {
 	ScanFilesCountTopic            string `yaml:"scan_files_count_topic"`
 	CompletedDirectoriesCountTopic string `yaml:"completed_directories_count_topic"`
 }
-
-
-
 
 type MainServiceConfig struct {
 	Kafka MainServiceKafka `yaml:"kafka"`
@@ -108,6 +99,23 @@ type MainServiceHttp struct {
 	Port string `yaml:"port"`
 }
 
+type CounterReducerConfig struct {
+	Kafka CounterReducerKafka `yaml:"kafka"`
+	Mongo CounterReducerMongo `yaml:"mongo"`
+}
+type CounterReducerKafka struct {
+	Brokers             []string `yaml:"brokers"`
+	CounterReducerTopic string   `yaml:"counter_reducer_topic"`
+	CounterReducerGroup string   `yaml:"counter_reducer_group"`
+	BatchSize           int      `yaml:"batch_size"`
+	Duration            int      `yaml:"duration"`
+}
+
+type CounterReducerMongo struct {
+	MongoUri        string `yaml:"mongo_uri"`
+	MongoDb         string `yaml:"mongo_db"`
+	MongoCollection string `yaml:"mongo_collection"`
+}
 type MongoCounterSvcConfig struct {
 	ScanDirectoriesCount      string
 	ScanFilesCount            string

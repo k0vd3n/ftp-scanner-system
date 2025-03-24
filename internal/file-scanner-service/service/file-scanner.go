@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"ftp-scanner_try2/config"
 	"ftp-scanner_try2/internal/file-scanner-service/scanner"
 	ftpclient "ftp-scanner_try2/internal/ftp"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 type FileScannerService interface {
@@ -41,7 +43,13 @@ func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpCli
 
 	// Скачиваем файл
 	localDir := filepath.Join(s.config.KafkaScanResultProducer.FileScanDownloadPath, scanMsg.ScanID)
-	if err := os.MkdirAll(localDir, s.config.KafkaScanResultProducer.Permision); err != nil {
+	perm, err := strconv.ParseUint(s.config.KafkaScanResultProducer.Permision, 8, 32)
+	if err != nil {
+		return fmt.Errorf("file-scanner-service service: Ошибка при парсинге прав доступа: %v", err)
+	}
+	fileMode := os.FileMode(perm)
+	log.Printf("file-scanner-service service: Создание директории %s с правами %0o", localDir, perm)
+	if err := os.MkdirAll(localDir, fileMode); err != nil {
 		log.Printf("file-scanner-service service: Ошибка при создании директории %s: %v", localDir, err)
 		return err
 	}

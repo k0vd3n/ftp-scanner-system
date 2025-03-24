@@ -6,8 +6,8 @@ file_scanner_service:
     consumer_group: "file-scanner-group"
   kafka_scan_result_producer:
     broker: "localhost:9092"
-    file_scan_download_path: "/tmp/scan_files"
-    permission: 0755
+    file_scan_download_path: "/home/k0vd3n/go/src/ftp-scanner_try2/scan_files"
+    permission: "0755"
     scanner_types: ["zero_bytes"]
     routing:
       default_topic: "scan-results"
@@ -50,3 +50,16 @@ main_service:
     counter_server_port: ":50052"
   http:
     port: ":8080"
+
+counter_reducer_service:
+  kafka:
+    brokers:
+      - "localhost:9092"
+    counter_reducer_topic: "scan-files-count"
+    counter_reducer_group: "scan-files-counter-reducer-group"
+    batch_size: 1000
+    duration: 60
+  mongo:
+    mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
+    mongo_db: "testdb"
+    mongo_collection: "scan_files_count"

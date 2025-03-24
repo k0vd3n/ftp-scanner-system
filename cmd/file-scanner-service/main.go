@@ -20,10 +20,10 @@ func main() {
 	// Загружаем unified config
 	cfg, err := config.LoadUnifiedConfig("config/config.yaml")
 	if err != nil {
-		log.Fatalf("Ошибка загрузки конфига: %v", err)
+		log.Fatalf("file-scanner-service: Ошибка загрузки конфига: %v", err)
 	}
 
-	scannerTypes := cfg.FileScannerService.KafkaScanResultProducer.ScannerTypes
+	scannerTypes := cfg.FileScanner.KafkaScanResultProducer.ScannerTypes
 	scannerMap := make(map[string]scanner.FileScanner)
 	for _, st := range scannerTypes {
 		switch st {
@@ -34,16 +34,16 @@ func main() {
 
 	log.Printf("file-scanner-service: Создание Kafka consumer...")
 	consumer := kafka.NewFileConsumer(
-		cfg.FileScannerService.KafkaConsumer.Brokers,
-		cfg.FileScannerService.KafkaConsumer.ConsumerTopic,
-		cfg.FileScannerService.KafkaConsumer.ConsumerGroup,
+		cfg.FileScanner.KafkaConsumer.Brokers,
+		cfg.FileScanner.KafkaConsumer.ConsumerTopic,
+		cfg.FileScanner.KafkaConsumer.ConsumerGroup,
 	)
 	defer consumer.CloseReader()
 
 	log.Printf("file-scanner-service: Создание Kafka scan result producer...")
 	scanResultProducer, err := kafka.NewScanResultProducer(
-		cfg.FileScannerService.KafkaScanResultProducer.Broker,
-		cfg.FileScannerService.KafkaScanResultProducer.Routing,
+		cfg.FileScanner.KafkaScanResultProducer.Broker,
+		cfg.FileScanner.KafkaScanResultProducer.Routing,
 	)
 	if err != nil {
 		log.Fatalf("file-scanner-service: Ошибка создания Kafka scan result producer: %v", err)
@@ -51,7 +51,7 @@ func main() {
 	defer scanResultProducer.CloseWriter()
 
 	log.Printf("file-scanner-service: Создание Kafka counter producer...")
-	counterProducer, err := kafka.NewProducer(cfg.FileScannerService.KafkaCompletedFilesCountProducer.Broker)
+	counterProducer, err := kafka.NewProducer(cfg.FileScanner.KafkaCompletedFilesCountProducer.Broker)
 	if err != nil {
 		log.Fatalf("file-scanner-service: Ошибка создания Kafka counter producer: %v", err)
 	}
@@ -62,7 +62,7 @@ func main() {
 	fileScannerService := filescannerservice.NewFileScannerService(
 		scanResultProducer,
 		counterProducer,
-		cfg.FileScannerService,
+		cfg.FileScanner,
 		scannerMap,
 	)
 

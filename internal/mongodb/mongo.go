@@ -139,6 +139,7 @@ func (r *MongoCounterRepository) InsertReducedCounters(ctx context.Context, coun
 	for _, count := range counts {
 		documents = append(documents, count)
 	}
+	log.Printf("MongoDB: Вставляем %d документов в коллекцию %s\n", len(documents), r.collection)
 
 	_, err := collection.InsertMany(ctx, documents)
 	if err != nil {

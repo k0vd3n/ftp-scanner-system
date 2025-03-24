@@ -5,66 +5,77 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
+	"ftp-scanner_try2/config"
 	counterreducerservice "ftp-scanner_try2/internal/counter-reducer-service"
 	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/mongodb"
 
-	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func main() {
-	err := godotenv.Load()
+	log.Println("counter-reducer-service main: Запуск сервиса редьюсирования...")
+	log.Println("counter-reducer-service main: Загрузка конфига...")
+	// Загружаем unified config
+	cfg, err := config.LoadUnifiedConfig("config/config.yaml")
 	if err != nil {
-		log.Fatalf("Ошибка загрузки .env: %v", err)
+		log.Fatalf("counter-reducer-service main: Ошибка загрузки конфига: %v", err)
 	}
 
-	// Настройка Kafka
-	brokers := []string{os.Getenv("KAFKA_COUNTER_REDUCER_BROKER")}
-	topic := os.Getenv("KAFKA_REDUCER_TOPIC")
-	groupID := os.Getenv("KAFKA_COUNTER_GROUP_ID")
-	batchSize, _ := strconv.Atoi(os.Getenv("COUNTER_REDUCER_BATCH_SIZE"))
-	duration, _ := strconv.Atoi(os.Getenv("COUNTER_REDUCER_CYCLE_DURATION"))
-
-	// Настройка MongoDB
-	mongoURI := os.Getenv("MONGO_URI")
-	mongoDatabase := os.Getenv("MONGO_DATABASE_COUNTER")
-	mongoCollection := os.Getenv("MONGO_COLLECTION_COUNTER")
-
 	// Инициализация MongoDB
+	log.Println("counter-reducer-service main: Инициализация соединения с MongoDB...")
+	mongoURI := cfg.CounterReducer.Mongo.MongoUri
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURI))
 	if err != nil {
-		log.Fatalf("Ошибка подключения к MongoDB: %v", err)
+		log.Fatalf("counter-reducer-service main: Ошибка подключения к MongoDB: %v", err)
 	}
 	defer client.Disconnect(context.TODO())
 
-	repo := mongodb.NewCounterRepository(client, mongoDatabase, mongoCollection)
+	repo := mongodb.NewCounterRepository(
+		client,
+		cfg.CounterReducer.Mongo.MongoDb,
+		cfg.CounterReducer.Mongo.MongoCollection,
+	)
 	service := counterreducerservice.NewCounterReducerService(repo)
 
 	// Инициализация Kafka-консьюмера
-	consumer := kafka.NewCounterConsumer(brokers, topic, groupID)
+	log.Println("counter-reducer-service main: Инициализация Kafka-консьюмера...")
+	consumer := kafka.NewCounterConsumer(
+		cfg.CounterReducer.Kafka.Brokers,
+		cfg.CounterReducer.Kafka.CounterReducerTopic,
+		cfg.CounterReducer.Kafka.CounterReducerGroup,
+	)
 	defer consumer.CloseReader()
 
 	// Обработка сообщений
+	log.Println("counter-reducer-service main: Начало обработки сообщений...")
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
 		for {
-			messages, err := consumer.ReadMessages(ctx, batchSize, time.Duration(duration)*time.Second)
+			messages, err := consumer.ReadMessages(
+				ctx,
+				cfg.CounterReducer.Kafka.BatchSize,
+				time.Duration(cfg.CounterReducer.Kafka.Duration)*time.Second,
+			)
 			if err != nil {
-				log.Printf("Ошибка чтения сообщений: %v", err)
+				log.Printf("counter-reducer-service main: Ошибка чтения сообщений: %v", err)
 				continue
 			}
-
-			reduced := service.ReduceMessages(messages)
-			if err := repo.InsertReducedCounters(ctx, reduced); err != nil {
-				log.Printf("Ошибка вставки данных в MongoDB: %v", err)
+			log.Printf("counter-reducer-service main: Получено %d сообщений", len(messages))
+			if len(messages) != 0 {
+				log.Println("counter-reducer-service main: Редьюс сообщений...")
+				reduced := service.ReduceMessages(messages)
+				log.Println("counter-reducer-service main: Вставка редьюсированных данных в MongoDB...")
+				if err := repo.InsertReducedCounters(ctx, reduced); err != nil {
+					log.Printf("counter-reducer-service main: Ошибка вставки данных в MongoDB: %v", err)
+				}
 			}
+
 		}
 	}()
 
@@ -73,5 +84,5 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 	cancel()
-	log.Println("Сервис завершил работу")
+	log.Println("counter-reducer-service main: Сервис завершил работу")
 }

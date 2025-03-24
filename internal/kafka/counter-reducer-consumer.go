@@ -26,13 +26,15 @@ func NewCounterConsumer(brokers []string, topic, groupID string) KafkaCounterRed
 }
 
 func (c *CounterConsumer) ReadMessages(ctx context.Context, batchSize int, duration time.Duration) ([]models.CountMessage, error) {
-	log.Printf("Counter-reducer-consumer: Чтение сообщений из Kafka...")
+	log.Printf("counter-reducer-consumer: Чтение сообщений из Kafka топика %s...",  c.Reader.Config().Topic)
 	var messages []models.CountMessage
 
 	// Установка тайм-аута через контекст
 	ctx, cancel := context.WithTimeout(ctx, duration)
 	defer cancel()
 
+	log.Printf("counter-reducer-consumer: Начало цикла чтения сообщений...")
+	counter := 0
 	for i := 0; i < batchSize; i++ {
 		select {
 		case <-ctx.Done(): // Если время истекло, выходим из цикла
@@ -47,6 +49,10 @@ func (c *CounterConsumer) ReadMessages(ctx context.Context, batchSize int, durat
 					return messages, nil
 				}
 				return nil, err
+			}
+			if counter < 10 {
+				log.Printf("Counter-reducer-consumer: Получено сообщение: %v\n", string(msg.Value))
+				counter++
 			}
 
 			var countMsg models.CountMessage

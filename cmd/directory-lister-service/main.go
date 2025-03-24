@@ -13,8 +13,7 @@ import (
 )
 
 func main() {
-	log.Printf("Directory Lister Service: main: Загрузка переменных окружения...")
-
+	log.Printf("Directory Lister Service: main: Загрузка конфигурации...")
 	cfg, err := config.LoadUnifiedConfig("config/config.yaml")
 	if err != nil {
 		log.Fatalf("Ошибка загрузки конфига: %v", err)
@@ -26,7 +25,6 @@ func main() {
 
 	producerConfig := cfg.DirectoryLister.Kafka
 
-	log.Printf("Directory Lister Service: main: Загрузка конфигурации...")
 	// Создаем Kafka consumer и producer
 	consumer := kafka.NewDirectoryConsumer(consumerBrokers, topic, groupID)
 	defer consumer.CloseReader()

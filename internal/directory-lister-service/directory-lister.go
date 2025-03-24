@@ -39,12 +39,19 @@ func (s *directoryListerService) ProcessDirectory(scanMsg *models.DirectoryScanM
 	log.Printf("Directory-lister-service: Найдено %d поддиректорий и %d файлов", len(directories), len(files))
 	// Если поддиректорий не нашли, то не будем отправлять в топик листинга директорий 0
 	if len(directories) != 0 {
+		ftpConnection := models.FTPConnection{
+			Server:   scanMsg.FTPConnection.Server,
+			Port:     scanMsg.FTPConnection.Port,
+			Username: scanMsg.FTPConnection.Username,
+			Password: scanMsg.FTPConnection.Password,
+		}
 		// Отправляем поддиректории в топик листинга директорий
 		for _, dir := range directories {
 			msg := models.DirectoryScanMessage{
 				ScanID:        scanMsg.ScanID,
 				DirectoryPath: dir,
 				ScanTypes:     scanMsg.ScanTypes,
+				FTPConnection: ftpConnection,
 			}
 			s.producer.SendMessage(s.config.DirectoriesToScanTopic, msg)
 		}
