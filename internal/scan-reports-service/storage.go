@@ -3,7 +3,9 @@ package reportservice
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"time"
 )
 
 // Интерфейс для хранилища отчетов
@@ -21,7 +23,8 @@ func NewFileReportStorage(basePath string) *FileReportStorage {
 }
 
 func (s *FileReportStorage) SaveReport(scanID string, data interface{}) (string, error) {
-	filePath := fmt.Sprintf("%s/%s.json", s.basePath, scanID)
+	log.Printf("scan-reports-service storage: SaveReport: Сохранение отчета для scan_id=%s", scanID)
+	filePath := fmt.Sprintf("%s/%s_timestamp_%s.json", s.basePath, scanID, fmt.Sprintf("%d", time.Now().UnixNano()))
 
 	if err := os.MkdirAll(s.basePath, 0755); err != nil {
 		return "", err
@@ -36,5 +39,6 @@ func (s *FileReportStorage) SaveReport(scanID string, data interface{}) (string,
 		return "", err
 	}
 
+	log.Printf("scan-reports-service storage: SaveReport: Сохранение отчета для scan_id=%s завершено", scanID)
 	return fmt.Sprintf("http://example.com/reports/%s.json", scanID), nil
 }

@@ -66,28 +66,40 @@ func (h *KafkaHandler) Start(ctx context.Context, config config.DirectoryListerK
 				)
 
 				if err != nil {
-					log.Println("Ошибка подключения к FTP:", err)
+					log.Println("directory-lister kafka-handler Start: Ошибка подключения к FTP:", err)
 					continue
 				}
 
 				currentFTPClient = ftpClient
 				currentParams = &msg.FTPConnection
-				log.Println("Установлено новое FTP-соединение")
+				log.Println("directory-lister kafka-handler Start: Установлено новое FTP-соединение")
 			}
 
 			// Проверка активности существующего соединения
 			if err := currentFTPClient.CheckConnection(); err != nil {
-				log.Println("Соединение неактивно, переподключаемся...")
+				log.Println("directory-lister kafka-handler Start: Соединение неактивно, переподключаемся...")
 				currentFTPClient.Close()
-				currentFTPClient = nil
+
+				ftpClient, err := ftpclient.NewFTPClient(
+					fmt.Sprintf("%s:%d", msg.FTPConnection.Server, msg.FTPConnection.Port),
+					msg.FTPConnection.Username,
+					msg.FTPConnection.Password,
+				)
+
+				if err != nil {
+					log.Println("directory-lister kafka-handler Start: Ошибка подключения к FTP:", err)
+					continue
+				}
+
+				currentFTPClient = ftpClient
+				currentParams = &msg.FTPConnection
+				log.Println("directory-lister kafka-handler Start: Установлено новое FTP-соединение")
 				continue
 			}
 
 			// Обработка сообщения
 			if err := h.service.ProcessDirectory(msg, currentFTPClient); err != nil {
-				log.Println("Ошибка обработки директории:", err)
-				currentFTPClient.Close()
-				currentFTPClient = nil
+				log.Println("directory-lister kafka-handler Start: Ошибка обработки директории:", err)
 			}
 		}
 	}

@@ -86,6 +86,7 @@ func (s *MainServer) HandleGetScanStatus(w http.ResponseWriter, r *http.Request)
 func (s *MainServer) HandleGetReport(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Main-service: handlers: getReport: Получение отчета...")
 	scanID := r.URL.Query().Get("scan_id")
+	log.Printf("Main-service: handlers: getReport: scan_id: %s", scanID)
 	if scanID == "" {
 		log.Printf("Main-service: handlers: getReport: Необходимо указать scan_id")
 		http.Error(w, "scan_id is required", http.StatusBadRequest)

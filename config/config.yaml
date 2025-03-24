@@ -76,3 +76,13 @@ scan_result_reducer_service:
     mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
     mongo_db: "testdb"
     mongo_collection: "scan_reports"
+
+report_service:
+  mongo: 
+    mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
+    mongo_db: "testdb"
+    mongo_collection: "scan_reports"
+  grpc:
+    server_port: ":50051"
+  repository:
+    directory: "/home/k0vd3n/go/src/ftp-scanner_try2/reports"

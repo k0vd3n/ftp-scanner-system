@@ -25,6 +25,7 @@ type UnifiedConfig struct {
 	MainService       MainServiceConfig       `yaml:"main_service"`
 	CounterReducer    CounterReducerConfig    `yaml:"counter_reducer_service"`
 	ScanResultReducer ScanResultReducerConfig `yaml:"scan_result_reducer_service"`
+	ReportService     ReportServiceConfig     `yaml:"report_service"`
 }
 
 type FileScannerConfig struct {
@@ -142,10 +143,25 @@ type ScanResultReducerMongo struct {
 
 
 
+type ReportServiceConfig struct {
+	Mongo ReportServiceMongo `yaml:"mongo"`
+	Grpc  ReportServiceGrpc  `yaml:"grpc"`
+	Repository ReportServiceRepository `yaml:"repository"`
+}
 
+type ReportServiceMongo struct {
+	MongoUri string `yaml:"mongo_uri"`
+	MongoDb string `yaml:"mongo_db"`
+	MongoCollection string `yaml:"mongo_collection"`
+}
 
+type ReportServiceGrpc struct {
+	ServerPort string `yaml:"server_port"`
+}
 
-
+type ReportServiceRepository struct {
+	Directory string `yaml:"directory"`
+}
 
 
 type MongoCounterSvcConfig struct {
