@@ -3,6 +3,7 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"ftp-scanner_try2/internal/models"
 	"log"
 	"time"
@@ -32,6 +33,9 @@ func (c *ScanResultConsumer) ReadMessages(ctx context.Context, batchSize int, du
 	ctx, cancel := context.WithTimeout(ctx, duration)
 	defer cancel()
 
+	log.Printf("scan-result-reducer-consumer: Начало цикла чтения сообщений...")
+	counter := 0
+
 	for i := 0; i < batchSize; i++ {
 		select {
 		case <-ctx.Done(): // Если время истекло, выходим из цикла
@@ -40,7 +44,15 @@ func (c *ScanResultConsumer) ReadMessages(ctx context.Context, batchSize int, du
 		default:
 			msg, err := c.Reader.ReadMessage(ctx)
 			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					log.Println("scan-result-reducer-consumer: Контекст завершен по тайм-ауту")
+					return messages, nil
+				}
 				return nil, err
+			}
+			if counter < 10 {
+				log.Printf("Counter-reducer-consumer: Получено сообщение: %v\n", string(msg.Value))
+				counter++
 			}
 
 			var resultMsg models.ScanResultMessage

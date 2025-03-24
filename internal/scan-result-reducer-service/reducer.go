@@ -2,6 +2,7 @@ package scanresultreducerservice
 
 import (
 	"ftp-scanner_try2/internal/models"
+	"log"
 	"strings"
 )
 
@@ -17,8 +18,10 @@ func NewReducerService() ReducerService {
 }
 
 func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) []models.ScanReport {
+	log.Println("scan-result-reducer-service reduce-scan-results: Начало редьюса результатов сканирования...")
 	scanMap := make(map[string]*models.ScanReport)
 
+	log.Printf("scan-result-reducer-service reduce-scan-results: Количество сообщений: %d", len(messages))
 	for _, msg := range messages {
 		// Проверяем, существует ли отчет для данного scan_id
 		if _, exists := scanMap[msg.ScanID]; !exists {
@@ -109,6 +112,7 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 	for _, report := range scanMap {
 		groupedResults = append(groupedResults, *report)
 	}
+	log.Printf("scan-result-reducer-service reduce-scan-results: Редьюс завершен. Количество отчетов: %d", len(groupedResults))
 	return groupedResults
 }
 

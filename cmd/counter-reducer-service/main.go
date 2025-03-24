@@ -74,6 +74,7 @@ func main() {
 				if err := repo.InsertReducedCounters(ctx, reduced); err != nil {
 					log.Printf("counter-reducer-service main: Ошибка вставки данных в MongoDB: %v", err)
 				}
+				log.Printf("counter-reducer-service main: Сообщения отправлены в Mongodb")
 			}
 
 		}

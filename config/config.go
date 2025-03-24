@@ -20,10 +20,11 @@ func LoadUnifiedConfig(path string) (*UnifiedConfig, error) {
 }
 
 type UnifiedConfig struct {
-	FileScanner     FileScannerConfig     `yaml:"file_scanner_service"`
-	DirectoryLister DirectoryListerConfig `yaml:"directory_lister_service"`
-	MainService     MainServiceConfig     `yaml:"main_service"`
-	CounterReducer  CounterReducerConfig  `yaml:"counter_reducer_service"`
+	FileScanner       FileScannerConfig       `yaml:"file_scanner_service"`
+	DirectoryLister   DirectoryListerConfig   `yaml:"directory_lister_service"`
+	MainService       MainServiceConfig       `yaml:"main_service"`
+	CounterReducer    CounterReducerConfig    `yaml:"counter_reducer_service"`
+	ScanResultReducer ScanResultReducerConfig `yaml:"scan_result_reducer_service"`
 }
 
 type FileScannerConfig struct {
@@ -116,6 +117,37 @@ type CounterReducerMongo struct {
 	MongoDb         string `yaml:"mongo_db"`
 	MongoCollection string `yaml:"mongo_collection"`
 }
+
+
+
+
+type ScanResultReducerConfig struct {
+	Kafka ScanResultReducerKafka `yaml:"kafka"`
+	Mongo ScanResultReducerMongo `yaml:"mongo"`
+}
+
+type ScanResultReducerKafka struct {
+	Brokers []string `yaml:"brokers"`
+	ConsumerTopic  string   `yaml:"consumer_topic"`
+	ConsumerGroup string   `yaml:"consumer_group"`
+	BatchSize int      `yaml:"batch_size"`
+	Duration  int      `yaml:"duration"`
+}
+
+type ScanResultReducerMongo struct {
+	MongoUri string `yaml:"mongo_uri"`
+	MongoDb string `yaml:"mongo_db"`
+	MongoCollection string `yaml:"mongo_collection"`	
+}
+
+
+
+
+
+
+
+
+
 type MongoCounterSvcConfig struct {
 	ScanDirectoriesCount      string
 	ScanFilesCount            string

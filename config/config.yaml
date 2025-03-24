@@ -63,3 +63,16 @@ counter_reducer_service:
     mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
     mongo_db: "testdb"
     mongo_collection: "scan_files_count"
+
+scan_result_reducer_service:
+  kafka:
+    brokers:
+      - "localhost:9092"
+    consumer_topic: "scan-results"
+    consumer_group: "scan-results-reducer-consumer-group"
+    batch_size: 100
+    duration: 30
+  mongo:
+    mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
+    mongo_db: "testdb"
+    mongo_collection: "scan_reports"

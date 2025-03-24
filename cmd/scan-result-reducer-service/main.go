@@ -2,80 +2,97 @@ package main
 
 import (
 	"context"
+	"ftp-scanner_try2/config"
 	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/mongodb"
 	scanresultreducerservice "ftp-scanner_try2/internal/scan-result-reducer-service"
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
-	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func main() {
-	// Загрузка переменных окружения из .env
-	if err := godotenv.Load(); err != nil {
-		log.Fatalf("Ошибка загрузки .env: %v", err)
-	}
+	log.Println("scan-result-reducer-service main: Запуск сервиса редьюса результатов сканирования...")
+	log.Println("scan-result-reducer-service main: Загрузка конфигурации...")
 
-	// Настройка Kafka
-	brokers := []string{os.Getenv("KAFKA_BROKER")}
-	topic := os.Getenv("KAFKA_FILE_SCAN_RESULTS_TOPIC")
-	groupID := os.Getenv("KAFKA_REPORT_REDUCER_GROUP_ID")
-	batchSize, err := strconv.Atoi(os.Getenv("KAFKA_BATCH_SIZE"))
+	// Загружаем unified config
+	cfg, err := config.LoadUnifiedConfig("config/config.yaml")
 	if err != nil {
-		log.Fatalf("Ошибка преобразования переменной KAFKA_BATCH_SIZE: %v", err)
-	}
-	duration, err := strconv.Atoi(os.Getenv("KAFKA_REDUCER_CYCLE_DURATION"))
-	if err != nil {
-		log.Fatalf("Ошибка преобразования переменной KAFKA_REDUCER_CYCLE_DURATION: %v", err)
+		log.Fatalf("scan-result-reducer-service main: Ошибка загрузки конфига: %v", err)
 	}
 
-	// Настройка MongoDB
-	mongoURI := os.Getenv("MONGO_URI")
-	mongoDatabase := os.Getenv("MONGO_DATABASE_REPORTS")
-	mongoCollection := os.Getenv("MONGO_COLLECTION_REPORTS")
-
+	log.Printf("scan-result-reducer-service main: Подключение к MongoDB")
+	log.Printf("scan-result-reducer-service main: MongoDB URI: %s", cfg.ScanResultReducer.Mongo.MongoUri)
+	log.Printf("scan-result-reducer-service main: MongoDB Database: %s", cfg.ScanResultReducer.Mongo.MongoDb)
+	log.Printf("scan-result-reducer-service main: MongoDB Collection: %s", cfg.ScanResultReducer.Mongo.MongoCollection)
 	// Подключение к MongoDB
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURI))
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(cfg.ScanResultReducer.Mongo.MongoUri))
 	if err != nil {
-		log.Fatalf("Ошибка подключения к MongoDB: %v", err)
+		log.Fatalf("scan-result-reducer-service main: Ошибка подключения к MongoDB: %v", err)
 	}
 	defer func() {
 		if err := client.Disconnect(context.TODO()); err != nil {
-			log.Fatalf("Ошибка при отключении от MongoDB: %v", err)
+			log.Fatalf("scan-result-reducer-service main: Ошибка при отключении от MongoDB: %v", err)
 		}
 	}()
 
+	log.Printf("scan-result-reducer-service main: Инициалиция репозитория и сервиса...")
 	// Инициализация репозитория и сервиса
-	repo := mongodb.NewMongoSaveReportRepository(client, mongoDatabase, mongoCollection)
+	repo := mongodb.NewMongoSaveReportRepository(
+		client,
+		cfg.ScanResultReducer.Mongo.MongoDb,
+		cfg.ScanResultReducer.Mongo.MongoCollection,
+	)
 	service := scanresultreducerservice.NewReducerService()
 
+	log.Printf("scan-result-reducer-service main: Инициализация Kafka-консьюмера...")
 	// Инициализация Kafka-консьюмера
-	consumer := kafka.NewScanResultConsumer(brokers, topic, groupID)
+	log.Printf("scan-result-reducer-service main: Kafka brokers: %v", cfg.ScanResultReducer.Kafka.Brokers)
+	log.Printf("scan-result-reducer-service main: Kafka topic: %s", cfg.ScanResultReducer.Kafka.ConsumerTopic)
+	log.Printf("scan-result-reducer-service main: Kafka groupID: %s", cfg.ScanResultReducer.Kafka.ConsumerGroup)
+	log.Printf("scan-result-reducer-service main: Kafka batchSize: %d", cfg.ScanResultReducer.Kafka.BatchSize)
+	log.Printf("scan-result-reducer-service main: Kafka duration: %d", cfg.ScanResultReducer.Kafka.Duration)
+
+	consumer := kafka.NewScanResultConsumer(
+		cfg.ScanResultReducer.Kafka.Brokers,
+		cfg.ScanResultReducer.Kafka.ConsumerTopic,
+		cfg.ScanResultReducer.Kafka.ConsumerGroup,
+	)
 	defer consumer.CloseReader()
 
 	// Контекст для graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Горутинa для обработки сообщений
+	log.Println("scan-result-reducer-service main: Запуск обработки сообщений...")
 	go func() {
 		for {
-			messages, err := consumer.ReadMessages(ctx, batchSize, time.Duration(duration)*time.Second)
+			messages, err := consumer.ReadMessages(
+				ctx,
+				cfg.ScanResultReducer.Kafka.BatchSize,
+				time.Duration(cfg.ScanResultReducer.Kafka.Duration)*time.Second,
+			)
 			if err != nil {
-				log.Printf("Ошибка чтения сообщений из Kafka: %v", err)
+				log.Printf("scan-result-reducer-service main: Ошибка чтения сообщений из Kafka: %v", err)
 				continue
 			}
+			log.Printf("scan-result-reducer-service main: Получено %d сообщений", len(messages))
 
-			reducedResults := service.ReduceScanResults(messages)
-			if err := repo.InsertScanReports(ctx, reducedResults); err != nil {
-				log.Printf("Ошибка сохранения данных в MongoDB: %v", err)
+			if len(messages) != 0 {
+				log.Printf("scan-result-reducer-service main: Редьюс %d сообщений...", len(messages))
+				reducedResults := service.ReduceScanResults(messages)
+				log.Printf("scan-result-reducer-service main: Сохранение %d сообщений в MongoDB...", len(reducedResults))
+				if err := repo.InsertScanReports(ctx, reducedResults); err != nil {
+					log.Printf("scan-result-reducer-service main: Ошибка сохранения данных в MongoDB: %v", err)
+				}
+				log.Printf("scan-result-reducer-service main: Сообщения отправлены в MongoDB")
 			}
+
 		}
 	}()
 
@@ -84,5 +101,5 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 	cancel()
-	log.Println("Сервис завершил работу")
+	log.Println("scan-result-reducer-service main: Сервис завершил работу")
 }
