@@ -97,6 +97,7 @@ func (h *KafkaHandler) Start(ctx context.Context, config config.DirectoryListerK
 				continue
 			}
 
+			log.Printf("directory-lister kafka-handler Start: Обработка сообщения %v\n", msg)
 			// Обработка сообщения
 			if err := h.service.ProcessDirectory(msg, currentFTPClient); err != nil {
 				log.Println("directory-lister kafka-handler Start: Ошибка обработки директории:", err)

@@ -11,7 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// Реализация интерфейса для MongoDB
+// Реализация интерфейса для 
 type MongoReportRepository struct {
 	client     *mongo.Client
 	database   string
@@ -65,7 +65,7 @@ func NewMongoCounterRepository(client *mongo.Client, database string) GetCounter
 }
 
 // Метод получения счетчиков
-func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID string, config config.MongoCounterSvcConfig) (*models.CounterResponseGRPC, error) {
+func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID string, config config.StatusServiceMongo) (*models.CounterResponseGRPC, error) {
 	log.Printf("MongoDB: Получение счетчиков для ID скана: %s\n", scanID)
 	err := godotenv.Load()
 	if err != nil {
@@ -89,16 +89,19 @@ func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID
 
 	for _, mapping := range mappings {
 		collection := r.client.Database(r.database).Collection(mapping.CollectionName)
-		filter := bson.M{"scan_id": scanID}
+		log.Printf("MongoDB: Получение счетчиков из коллекции %s для scan_id: %s\n", mapping.CollectionName, scanID)
+		filter := bson.M{"scanid": scanID}
 
 		cursor, err := collection.Find(ctx, filter)
 		if err != nil {
 			log.Printf("MongoDB: Ошибка при получении счетчиков: %v\n", err)
 			return nil, err
 		}
+		log.Printf("MongoDB: Получены счетчики из коллекции %s для scan_id: %s\n", mapping.CollectionName, scanID)
 		defer cursor.Close(ctx)
 
 		var total int64
+		counter := 0
 		for cursor.Next(ctx) {
 			var data struct {
 				Number int64 `bson:"number"`
@@ -107,8 +110,12 @@ func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID
 				log.Printf("MongoDB: Ошибка при декодировании счетчика: %v\n", err)
 				return nil, err
 			}
+			if counter != 10 {
+				log.Printf("MongoDB: Декодировано число %d счетчика из коллекции %s для scan_id: %s\n", data.Number, mapping.CollectionName, scanID)
+			}
 			total += data.Number
 		}
+		log.Printf("MongoDB: Итоговое число счетчика = %d из коллекции %s для scan_id: %s\n", total, mapping.CollectionName, scanID)
 
 		*mapping.TargetField = total
 	}

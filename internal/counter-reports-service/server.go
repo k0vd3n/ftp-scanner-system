@@ -118,11 +118,11 @@ type CounterServerInterface interface {
 type CounterServer struct {
 	proto.UnimplementedCounterServiceServer
 	service CounterService
-	config  config.MongoCounterSvcConfig
+	config  config.StatusServiceMongo
 }
 
 // Конструктор сервера
-func NewCounterServer(service CounterService, config config.MongoCounterSvcConfig) CounterServerInterface {
+func NewCounterServer(service CounterService, config config.StatusServiceMongo) CounterServerInterface {
 	return &CounterServer{
 		service: service,
 		config:  config,
@@ -131,14 +131,18 @@ func NewCounterServer(service CounterService, config config.MongoCounterSvcConfi
 
 // gRPC метод получения счетчиков
 func (s *CounterServer) GetCounters(ctx context.Context, req *proto.CounterRequest) (*proto.CounterResponse, error) {
-	log.Printf("Получаем счетчики для scan_id: %s", req.ScanId)
+	log.Printf("counter-service server: GetCounters: Получаем счетчики для scan_id: %s", req.ScanId)
 
 	counters, err := s.service.GetCounters(ctx, req.ScanId, s.config)
 	if err != nil {
-		log.Printf("Ошибка получения счетчиков для scan_id %s: %v", req.ScanId, err)
+		log.Printf("counter-service server: GetCounters: Ошибка получения счетчиков для scan_id %s: %v", req.ScanId, err)
 		return nil, err
 	}
 
+	log.Printf("counter-service server: GetCounters: Счетчик directories_count: %d", counters.DirectoriesCount)
+	log.Printf("counter-service server: GetCounters: Счетчик files_count: %d", counters.FilesCount)
+	log.Printf("counter-service server: GetCounters: Счетчик completed_directories: %d", counters.CompletedDirectories)
+	log.Printf("counter-service server: GetCounters: Счетчик completed_files: %d", counters.CompletedFiles)
 	return &proto.CounterResponse{
 		ScanId:               counters.ScanID,
 		DirectoriesCount:     counters.DirectoriesCount,

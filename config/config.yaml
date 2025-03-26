@@ -55,14 +55,14 @@ counter_reducer_service:
   kafka:
     brokers:
       - "localhost:9092"
-    counter_reducer_topic: "scan-files-count"
-    counter_reducer_group: "scan-files-counter-reducer-group"
+    counter_reducer_topic: "scan-directories-count"
+    counter_reducer_group: "scan-directories-counter-reducer-group"
     batch_size: 1000
     duration: 60
   mongo:
     mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
     mongo_db: "testdb"
-    mongo_collection: "scan_files_count"
+    mongo_collection: "scan_directories_count"
 
 scan_result_reducer_service:
   kafka:
@@ -86,3 +86,15 @@ report_service:
     server_port: ":50051"
   repository:
     directory: "/home/k0vd3n/go/src/ftp-scanner_try2/reports"
+
+status_service: 
+  mongo:
+    mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
+    mongo_db: "testdb"
+  grpc:
+    port: ":50052"
+  kafka:
+    scan_directories_count_topic: "scan_directories_count"
+    scan_files_count_topic: "scan_files_count"
+    completed_directories_count_topic: "completed_directories_count"
+    completed_files_count_topic: "completed_files_count"

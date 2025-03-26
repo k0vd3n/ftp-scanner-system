@@ -26,6 +26,7 @@ type UnifiedConfig struct {
 	CounterReducer    CounterReducerConfig    `yaml:"counter_reducer_service"`
 	ScanResultReducer ScanResultReducerConfig `yaml:"scan_result_reducer_service"`
 	ReportService     ReportServiceConfig     `yaml:"report_service"`
+	StatusService     StatusServiceConfig     `yaml:"status_service"`
 }
 
 type FileScannerConfig struct {
@@ -119,39 +120,34 @@ type CounterReducerMongo struct {
 	MongoCollection string `yaml:"mongo_collection"`
 }
 
-
-
-
 type ScanResultReducerConfig struct {
 	Kafka ScanResultReducerKafka `yaml:"kafka"`
 	Mongo ScanResultReducerMongo `yaml:"mongo"`
 }
 
 type ScanResultReducerKafka struct {
-	Brokers []string `yaml:"brokers"`
-	ConsumerTopic  string   `yaml:"consumer_topic"`
+	Brokers       []string `yaml:"brokers"`
+	ConsumerTopic string   `yaml:"consumer_topic"`
 	ConsumerGroup string   `yaml:"consumer_group"`
-	BatchSize int      `yaml:"batch_size"`
-	Duration  int      `yaml:"duration"`
+	BatchSize     int      `yaml:"batch_size"`
+	Duration      int      `yaml:"duration"`
 }
 
 type ScanResultReducerMongo struct {
-	MongoUri string `yaml:"mongo_uri"`
-	MongoDb string `yaml:"mongo_db"`
-	MongoCollection string `yaml:"mongo_collection"`	
+	MongoUri        string `yaml:"mongo_uri"`
+	MongoDb         string `yaml:"mongo_db"`
+	MongoCollection string `yaml:"mongo_collection"`
 }
 
-
-
 type ReportServiceConfig struct {
-	Mongo ReportServiceMongo `yaml:"mongo"`
-	Grpc  ReportServiceGrpc  `yaml:"grpc"`
+	Mongo      ReportServiceMongo      `yaml:"mongo"`
+	Grpc       ReportServiceGrpc       `yaml:"grpc"`
 	Repository ReportServiceRepository `yaml:"repository"`
 }
 
 type ReportServiceMongo struct {
-	MongoUri string `yaml:"mongo_uri"`
-	MongoDb string `yaml:"mongo_db"`
+	MongoUri        string `yaml:"mongo_uri"`
+	MongoDb         string `yaml:"mongo_db"`
 	MongoCollection string `yaml:"mongo_collection"`
 }
 
@@ -163,10 +159,20 @@ type ReportServiceRepository struct {
 	Directory string `yaml:"directory"`
 }
 
+type StatusServiceConfig struct {
+	Mongo StatusServiceMongo `yaml:"mongo"`
+	Grpc  StatusServiceGrpc  `yaml:"grpc"`
+}
 
-type MongoCounterSvcConfig struct {
-	ScanDirectoriesCount      string
-	ScanFilesCount            string
-	CompletedDirectoriesCount string
-	CompletedFilesCount       string
+type StatusServiceMongo struct {
+	MongoUri                  string `yaml:"mongo_uri"`
+	MongoDb                   string `yaml:"mongo_db"`
+	ScanDirectoriesCount      string `yaml:"scan_directories_count_collection"`
+	ScanFilesCount            string `yaml:"scan_files_count_collection"`
+	CompletedDirectoriesCount string `yaml:"completed_directories_count_collection"`
+	CompletedFilesCount       string `yaml:"completed_files_count_collection"`
+}
+
+type StatusServiceGrpc struct {
+	Port string `yaml:"port"`
 }

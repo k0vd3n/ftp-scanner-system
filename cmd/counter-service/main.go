@@ -8,55 +8,50 @@ import (
 	"ftp-scanner_try2/internal/mongodb"
 	"log"
 	"net"
-	"os"
 
-	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
 )
 
 func main() {
-	err := godotenv.Load()
+	log.Printf("Counter Service: main: Запуск Counter Service...")
+	log.Printf("Counter Service: main: Загрузка конфигурации...")
+
+	// Загружаем unified config
+	cfg, err := config.LoadUnifiedConfig("config/config.yaml")
 	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+		log.Fatalf("Counter Service: main: Ошибка загрузки конфига: %v", err)
 	}
 
-	mongoURI := os.Getenv("MONGO_URI")
-	mongoDB := os.Getenv("MONGO_DATABASE_COUNTER")
-	counterServicePort := os.Getenv("GRPC_REPORT_SERVER_PORT")
+	log.Printf("Counter Service: main: mongoUri: %s", cfg.StatusService.Mongo.MongoUri)
 
-	log.Printf("Counter Service: main: mongoURI: %s", mongoURI)
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURI))
+	log.Printf("Counter Service: main: mongoURI: %s", cfg.StatusService.Mongo.MongoUri)
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(cfg.StatusService.Mongo.MongoUri))
 	if err != nil {
-		// logger.Fatalf("Failed to connect to MongoDB: %v", err)
 		log.Fatalf("Ошибка подключения к MongoDB: %v", err)
 	}
 	defer client.Disconnect(context.TODO())
 
-	repo := mongodb.NewMongoCounterRepository(client, mongoDB)
+	repo := mongodb.NewMongoCounterRepository(client, cfg.StatusService.Mongo.MongoDb)
 	service := counterservice.NewCounterService(repo)
-	config := config.MongoCounterSvcConfig{
-		ScanDirectoriesCount:      os.Getenv("SCAN_DIRECTORIES_COUNT"),
-		ScanFilesCount:            os.Getenv("SCAN_FILES_COUNT"),
-		CompletedDirectoriesCount: os.Getenv("COMPLETED_DIRECTORIES_COUNT"),
-		CompletedFilesCount:       os.Getenv("KAFKA_COMPLETED_FILES_COUNT_TOPIC"),
-	}
-	server := counterservice.NewCounterServer(service, config)
+	log.Printf("Counter Service: main: коллекция scan_directories_count: %s", cfg.StatusService.Mongo.ScanDirectoriesCount)
+	log.Printf("Counter Service: main: коллекция scan_files_count: %s", cfg.StatusService.Mongo.ScanFilesCount)
+	log.Printf("Counter Service: main: коллекция completed_directories_count: %s", cfg.StatusService.Mongo.CompletedDirectoriesCount)
+	log.Printf("Counter Service: main: коллекция completed_files_count: %s", cfg.StatusService.Mongo.CompletedFilesCount)
 
-	lis, err := net.Listen("tcp", counterServicePort)
+	server := counterservice.NewCounterServer(service, cfg.StatusService.Mongo)
+
+	lis, err := net.Listen("tcp", cfg.StatusService.Grpc.Port)
 	if err != nil {
-		// logger.Fatalf("Failed to listen: %v", err)
-		log.Fatalf("Ошибка прослушивания порта: %v", err)
+		log.Fatalf("Counter Service: main: Ошибка прослушивания порта: %v", err)
 	}
 
 	grpcServer := grpc.NewServer()
 	proto.RegisterCounterServiceServer(grpcServer, server)
 
-	// logger.Infof("Counter Service is running on port %s", counterServicePort)
-	log.Printf("Сервис счетчиков запущен на порте %s", counterServicePort)
+	log.Printf("Counter Service: main: Сервис счетчиков запущен на порте %s", cfg.StatusService.Grpc.Port)
 	if err := grpcServer.Serve(lis); err != nil {
-		// logger.Fatalf("Failed to serve: %v", err)
-		log.Fatalf("Ошибка запуска сервиса: %v", err)
+		log.Fatalf("Counter Service: main: Ошибка запуска сервиса: %v", err)
 	}
 }
