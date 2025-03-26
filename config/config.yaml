@@ -46,8 +46,8 @@ main_service:
   grpc:
     report_server_address: "localhost"
     report_server_port: ":50051"
-    counter_server_address: "localhost"
-    counter_server_port: ":50052"
+    status_server_address: "localhost"
+    status_server_port: ":50052"
   http:
     port: ":8080"
 

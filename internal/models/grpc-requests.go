@@ -11,16 +11,16 @@ type ReportResponseGRPC struct {
 	ReportURL string `json:"report_url"` // Ссылка на отчет
 }
 
-// CounterRequestGRPC представляет собой GRPC-запрос на получение значений счетчиков.
-type CounterRequestGRPC struct {
+// StatusRequestGRPC представляет собой GRPC-запрос на получение значений счетчиков.
+type StatusRequestGRPC struct {
 	ScanID string `json:"scan_id"` // Идентификатор сканирования
 }
 
-// CounterResponseGRPC представляет собой GRPC-ответ с значениями счетчиков.
-type CounterResponseGRPC struct {
-	ScanID               string `json:"scan_id"`                // Идентификатор сканирования
-	DirectoriesCount     int64    `json:"directories_count"`      // Количество директорий
-	FilesCount           int64    `json:"files_count"`            // Количество файлов
-	CompletedDirectories int64    `json:"completed_directories"`  // Количество завершенных директорий
-	CompletedFiles       int64    `json:"completed_files"`        // Количество завершенных файлов
+// StatusResponseGRPC представляет собой GRPC-ответ с значениями счетчиков.
+type StatusResponseGRPC struct {
+	ScanID               string `json:"scan_id"`               // Идентификатор сканирования
+	DirectoriesCount     int64  `json:"directories_count"`     // Количество директорий
+	FilesCount           int64  `json:"files_count"`           // Количество файлов
+	CompletedDirectories int64  `json:"completed_directories"` // Количество завершенных директорий
+	CompletedFiles       int64  `json:"completed_files"`       // Количество завершенных файлов
 }

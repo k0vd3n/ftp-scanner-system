@@ -16,8 +16,8 @@ type ReportService interface {
 	GetReport(ctx context.Context, scanID string) (*models.ReportResponse, error)
 }
 
-// Интерфейс сервиса счетчиков (gRPC Counter Client)
-type CounterService interface {
+// Интерфейс сервиса счетчиков (gRPC Status Client)
+type StatusService interface {
 	GetScanStatus(ctx context.Context, scanID string) (*models.StatusResponse, error)
 }
 

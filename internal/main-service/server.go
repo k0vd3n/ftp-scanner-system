@@ -7,16 +7,16 @@ import (
 )
 
 type MainServer struct {
-	scanServiceClient    ScanService
-	reportServiceClient  ReportService
-	counterServiceClient CounterService
+	scanServiceClient   ScanService
+	reportServiceClient ReportService
+	statusServiceClient StatusService
 }
 
-func NewMainServer(scanService ScanService, reportService ReportService, counterService CounterService) MainServiceInterface {
+func NewMainServer(scanService ScanService, reportService ReportService, statusService StatusService) MainServiceInterface {
 	return &MainServer{
-		scanServiceClient:    scanService,
-		reportServiceClient:  reportService,
-		counterServiceClient: counterService,
+		scanServiceClient:   scanService,
+		reportServiceClient: reportService,
+		statusServiceClient: statusService,
 	}
 }
 
@@ -37,7 +37,7 @@ func (s *MainServer) StartScan(ctx context.Context, req models.ScanRequest) (*mo
 func (s *MainServer) GetScanStatus(ctx context.Context, scanID string) (*models.StatusResponse, error) {
 	log.Printf("Main-service: server: Получение статуса сканирования для scan_id=%s", scanID)
 
-	response, err := s.counterServiceClient.GetScanStatus(ctx, scanID)
+	response, err := s.statusServiceClient.GetScanStatus(ctx, scanID)
 	if err != nil {
 		log.Printf("Main-service: server: Ошибка получения статуса сканирования: %v", err)
 		return nil, err

@@ -8,17 +8,17 @@ import (
 )
 
 type GRPCCounterService struct {
-	client proto.CounterServiceClient
+	client proto.StatusServiceClient
 }
 
-func NewGRPCCounterService(client proto.CounterServiceClient) *GRPCCounterService {
+func NewGRPCStatusService(client proto.StatusServiceClient) *GRPCCounterService {
 	return &GRPCCounterService{client: client}
 }
 
 func (s *GRPCCounterService) GetScanStatus(ctx context.Context, scanID string) (*models.StatusResponse, error) {
 	log.Printf("Main-service: counter-client: getScanStatus: Получение статуса сканирования для scan_id=%s", scanID)
 
-	counters, err := s.client.GetCounters(ctx, &proto.CounterRequest{ScanId: scanID})
+	counters, err := s.client.GetStatus(ctx, &proto.StatusRequest{ScanId: scanID})
 	if err != nil {
 		log.Printf("MainService: counter-client: getScanStatus: Ошибка получения счетчиков для scan_id=%s: %v", scanID, err)
 		return nil, err

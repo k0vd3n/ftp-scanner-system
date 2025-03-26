@@ -11,7 +11,7 @@ type ReportRepository interface {
 }
 
 type GetCounterRepository interface {
-	GetCountersByScanID(ctx context.Context, scanID string, config config.StatusServiceMongo) (*models.CounterResponseGRPC, error)
+	GetCountersByScanID(ctx context.Context, scanID string, config config.StatusServiceMongo) (*models.StatusResponseGRPC, error)
 }
 
 type CounterReducerRepository interface {

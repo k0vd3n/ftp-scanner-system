@@ -1,4 +1,4 @@
-package counterservice
+package statusservice
 
 import (
 	"context"
@@ -9,24 +9,24 @@ import (
 )
 
 // Интерфейс сервиса счётчиков
-type CounterService interface {
-	GetCounters(ctx context.Context, scanID string, config config.StatusServiceMongo) (*models.CounterResponseGRPC, error)
+type StatusService interface {
+	GetCounters(ctx context.Context, scanID string, config config.StatusServiceMongo) (*models.StatusResponseGRPC, error)
 }
 
 // Реализация сервиса
-type counterService struct {
+type statusService struct {
 	repo mongodb.GetCounterRepository
 }
 
 // Конструктор сервиса
-func NewCounterService(repo mongodb.GetCounterRepository) CounterService {
-	return &counterService{
+func NewStatusService(repo mongodb.GetCounterRepository) StatusService {
+	return &statusService{
 		repo: repo,
 	}
 }
 
 // Метод получения счетчиков
-func (s *counterService) GetCounters(ctx context.Context, scanID string, config config.StatusServiceMongo) (*models.CounterResponseGRPC, error) {
+func (s *statusService) GetCounters(ctx context.Context, scanID string, config config.StatusServiceMongo) (*models.StatusResponseGRPC, error) {
 	log.Printf("counter-service service: Получаем счетчики для scan_id: %s", scanID)
 
 	counters, err := s.repo.GetCountersByScanID(ctx, scanID, config)

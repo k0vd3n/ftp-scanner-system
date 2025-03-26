@@ -22,7 +22,7 @@ func main() {
 	}
 
 	grpcReportServerAddress := cfg.MainService.GRPC.ReportServerAddress + cfg.MainService.GRPC.ReportServerPort
-	grpcCounterServerAddress := cfg.MainService.GRPC.CounterServerAddress + cfg.MainService.GRPC.CounterServerPort
+	grpcStatusServerAddress := cfg.MainService.GRPC.StatusServerAddress + cfg.MainService.GRPC.StatusServerPort
 
 	log.Printf("Main-service: main: Инициализация Kafka Producer...")
 	// Инициализация Kafka Producer
@@ -42,11 +42,11 @@ func main() {
 	}
 	defer reportConn.Close()
 
-	counterConn, err := grpc.NewClient(grpcCounterServerAddress, grpc.WithTransportCredentials(creds))
+	statusConn, err := grpc.NewClient(grpcStatusServerAddress, grpc.WithTransportCredentials(creds))
 	if err != nil {
-		log.Fatalf("Main-service: main: Ошибка соединения с Counter Service: %v", err)
+		log.Fatalf("Main-service: main: Ошибка соединения с Status Service: %v", err)
 	}
-	defer counterConn.Close()
+	defer statusConn.Close()
 
 	log.Printf("Main-service: main: Инициализация сервисов...")
 	// Создаем сервисы
@@ -55,11 +55,11 @@ func main() {
 	}
 	scanService := service.NewKafkaScanService(kafkaProducer, configScanDirTopic)
 	reportService := service.NewGRPCReportService(proto.NewReportServiceClient(reportConn))
-	counterService := service.NewGRPCCounterService(proto.NewCounterServiceClient(counterConn))
+	statusService := service.NewGRPCStatusService(proto.NewStatusServiceClient(statusConn))
 
 	log.Printf("Main-service: main: Инициализация MainServer...")
 	// Создаем MainServer
-	server := mainservice.NewMainServer(scanService, reportService, counterService)
+	server := mainservice.NewMainServer(scanService, reportService, statusService)
 
 	log.Printf("Main-service: main: Настройка роутера...")
 	// Настройка роутера

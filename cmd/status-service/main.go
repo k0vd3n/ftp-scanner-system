@@ -4,8 +4,8 @@ import (
 	"context"
 	"ftp-scanner_try2/api/grpc/proto"
 	"ftp-scanner_try2/config"
-	counterservice "ftp-scanner_try2/internal/counter-reports-service"
 	"ftp-scanner_try2/internal/mongodb"
+	statusservice "ftp-scanner_try2/internal/status-service"
 	"log"
 	"net"
 
@@ -34,13 +34,13 @@ func main() {
 	defer client.Disconnect(context.TODO())
 
 	repo := mongodb.NewMongoCounterRepository(client, cfg.StatusService.Mongo.MongoDb)
-	service := counterservice.NewCounterService(repo)
+	service := statusservice.NewStatusService(repo)
 	log.Printf("Counter Service: main: коллекция scan_directories_count: %s", cfg.StatusService.Mongo.ScanDirectoriesCount)
 	log.Printf("Counter Service: main: коллекция scan_files_count: %s", cfg.StatusService.Mongo.ScanFilesCount)
 	log.Printf("Counter Service: main: коллекция completed_directories_count: %s", cfg.StatusService.Mongo.CompletedDirectoriesCount)
 	log.Printf("Counter Service: main: коллекция completed_files_count: %s", cfg.StatusService.Mongo.CompletedFilesCount)
 
-	server := counterservice.NewCounterServer(service, cfg.StatusService.Mongo)
+	server := statusservice.NewStatusServer(service, cfg.StatusService.Mongo)
 
 	lis, err := net.Listen("tcp", cfg.StatusService.Grpc.Port)
 	if err != nil {
@@ -48,7 +48,7 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	proto.RegisterCounterServiceServer(grpcServer, server)
+	proto.RegisterStatusServiceServer(grpcServer, server)
 
 	log.Printf("Counter Service: main: Сервис счетчиков запущен на порте %s", cfg.StatusService.Grpc.Port)
 	if err := grpcServer.Serve(lis); err != nil {

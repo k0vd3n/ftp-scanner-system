@@ -11,7 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// Реализация интерфейса для 
+// Реализация интерфейса для
 type MongoReportRepository struct {
 	client     *mongo.Client
 	database   string
@@ -65,7 +65,7 @@ func NewMongoCounterRepository(client *mongo.Client, database string) GetCounter
 }
 
 // Метод получения счетчиков
-func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID string, config config.StatusServiceMongo) (*models.CounterResponseGRPC, error) {
+func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID string, config config.StatusServiceMongo) (*models.StatusResponseGRPC, error) {
 	log.Printf("MongoDB: Получение счетчиков для ID скана: %s\n", scanID)
 	err := godotenv.Load()
 	if err != nil {
@@ -73,7 +73,7 @@ func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
-	counters := &models.CounterResponseGRPC{ScanID: scanID}
+	counters := &models.StatusResponseGRPC{ScanID: scanID}
 
 	type counterMapping struct {
 		CollectionName string

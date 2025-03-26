@@ -92,10 +92,10 @@ type MainServiceKafka struct {
 }
 
 type MainServiceGrpc struct {
-	ReportServerAddress  string `yaml:"report_server_address"`
-	ReportServerPort     string `yaml:"report_server_port"`
-	CounterServerAddress string `yaml:"counter_server_address"`
-	CounterServerPort    string `yaml:"counter_server_port"`
+	ReportServerAddress string `yaml:"report_server_address"`
+	ReportServerPort    string `yaml:"report_server_port"`
+	StatusServerAddress string `yaml:"status_server_address"`
+	StatusServerPort    string `yaml:"status_server_port"`
 }
 
 type MainServiceHttp struct {
