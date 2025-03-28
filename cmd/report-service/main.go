@@ -24,6 +24,9 @@ func main() {
 		log.Fatalf("counter-reducer-service main: Ошибка загрузки конфига: %v", err)
 	}
 
+	reportservice.InitMetrics()
+	reportservice.StartPushLoop(&cfg.PushGateway)
+
 	log.Printf("Report Service: main: Инициализация соединения с MongoDB...")
 	log.Printf("Report Service: main: MongoDB URI: %s", cfg.ReportService.Mongo.MongoUri)
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(cfg.ReportService.Mongo.MongoUri))

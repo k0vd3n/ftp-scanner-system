@@ -5,6 +5,7 @@ import (
 	"ftp-scanner_try2/internal/models"
 	"ftp-scanner_try2/internal/mongodb"
 	"log"
+	"time"
 )
 
 type ReportServiceInterface interface {
@@ -31,7 +32,16 @@ func (s *ReportService) GenerateReport(ctx context.Context, scanID string) (stri
 	groupedData := groupScanResults(reports)
 
 	log.Printf("scan-reports-service service: getReport: Сохранение отчета для scan_id=%s", scanID)
-	return s.storage.SaveReport(scanID, groupedData)
+	storageStart := time.Now()
+	reportUrl, err := s.storage.SaveReport(scanID, groupedData)
+	storageDuration := float64(time.Since(storageStart).Milliseconds())
+	ReportStorageDuration.Observe(storageDuration)
+	if err != nil {
+		ReportErrorsTotal.Inc()
+		return "", err
+	}
+	
+	return reportUrl, nil
 }
 
 // Функция группировки сообщений

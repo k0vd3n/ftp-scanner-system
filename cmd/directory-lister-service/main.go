@@ -19,12 +19,18 @@ func main() {
 		log.Fatalf("Ошибка загрузки конфига: %v", err)
 	}
 
+	// Инициализация метрик 
+	log.Printf("directory Lister Service: main: Инициализация метрик...")
+	directorylisterservice.InitMetrics()
+	directorylisterservice.StartPushLoop(&cfg.PushGateway)
+
 	consumerBrokers := []string{cfg.DirectoryLister.Kafka.Broker}
 	topic := cfg.DirectoryLister.Kafka.ConsumerTopic
 	groupID := cfg.DirectoryLister.Kafka.ConsumerGroup
 
 	producerConfig := cfg.DirectoryLister.Kafka
 
+	log.Printf("directory Lister Service: main: создание консумера и продусера")
 	// Создаем Kafka consumer и producer
 	consumer := kafka.NewDirectoryConsumer(consumerBrokers, topic, groupID)
 	defer consumer.CloseReader()

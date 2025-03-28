@@ -17,8 +17,8 @@ func NewProducer(broker string) (KafkaPoducerInterface, error) {
 		Addr:  kafka.TCP(broker),
 		// Topic: topic, // Топик по умолчанию
 		Balancer: &kafka.LeastBytes{},
-		BatchSize: 1,
-		BatchTimeout: 0,
+		BatchSize: 100,
+		BatchTimeout: 10,
 	}
 
 	return &Producer{

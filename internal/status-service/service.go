@@ -27,7 +27,9 @@ func NewStatusService(repo mongodb.GetCounterRepository) StatusService {
 
 // Метод получения счетчиков
 func (s *statusService) GetCounters(ctx context.Context, scanID string, config config.StatusServiceMongo) (*models.StatusResponseGRPC, error) {
-	log.Printf("counter-service service: Получаем счетчики для scan_id: %s", scanID)
+	log.Printf("counter-service service: Получаем счетчики для scan_id: %s из коллекций: %s, %s, %s, %s", 
+	scanID, config.ScanFilesCount, config.ScanDirectoriesCount, config.CompletedDirectoriesCount, config.CompletedFilesCount)
+
 
 	counters, err := s.repo.GetCountersByScanID(ctx, scanID, config)
 	if err != nil {

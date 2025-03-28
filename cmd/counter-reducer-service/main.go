@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"ftp-scanner_try2/config"
 	counterreducerservice "ftp-scanner_try2/internal/counter-reducer-service"
@@ -26,6 +25,9 @@ func main() {
 		log.Fatalf("counter-reducer-service main: Ошибка загрузки конфига: %v", err)
 	}
 
+	counterreducerservice.InitMetrics()
+	counterreducerservice.StartPushLoop(&cfg.PushGateway)
+
 	// Инициализация MongoDB
 	log.Println("counter-reducer-service main: Инициализация соединения с MongoDB...")
 	mongoURI := cfg.CounterReducer.Mongo.MongoUri
@@ -40,7 +42,6 @@ func main() {
 		cfg.CounterReducer.Mongo.MongoDb,
 		cfg.CounterReducer.Mongo.MongoCollection,
 	)
-	service := counterreducerservice.NewCounterReducerService(repo)
 
 	// Инициализация Kafka-консьюмера
 	log.Println("counter-reducer-service main: Инициализация Kafka-консьюмера...")
@@ -50,35 +51,12 @@ func main() {
 		cfg.CounterReducer.Kafka.CounterReducerGroup,
 	)
 	defer consumer.CloseReader()
-
+	service := counterreducerservice.NewCounterReducerService(repo, consumer, *cfg)
 	// Обработка сообщений
 	log.Println("counter-reducer-service main: Начало обработки сообщений...")
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go func() {
-		for {
-			messages, err := consumer.ReadMessages(
-				ctx,
-				cfg.CounterReducer.Kafka.BatchSize,
-				time.Duration(cfg.CounterReducer.Kafka.Duration)*time.Second,
-			)
-			if err != nil {
-				log.Printf("counter-reducer-service main: Ошибка чтения сообщений: %v", err)
-				continue
-			}
-			log.Printf("counter-reducer-service main: Получено %d сообщений", len(messages))
-			if len(messages) != 0 {
-				log.Println("counter-reducer-service main: Редьюс сообщений...")
-				reduced := service.ReduceMessages(messages)
-				log.Println("counter-reducer-service main: Вставка редьюсированных данных в MongoDB...")
-				if err := repo.InsertReducedCounters(ctx, reduced); err != nil {
-					log.Printf("counter-reducer-service main: Ошибка вставки данных в MongoDB: %v", err)
-				}
-				log.Printf("counter-reducer-service main: Сообщения отправлены в Mongodb")
-			}
-
-		}
-	}()
+	go service.Start(ctx)
 
 	// Завершение работы
 	stop := make(chan os.Signal, 1)

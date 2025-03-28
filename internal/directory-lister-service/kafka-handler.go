@@ -8,6 +8,7 @@ import (
 	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/models"
 	"log"
+	"time"
 )
 
 type KafkaHandlerInterface interface {
@@ -47,8 +48,10 @@ func (h *KafkaHandler) Start(ctx context.Context, config config.DirectoryListerK
 			msg, err := h.consumer.ReadMessage(ctx)
 			if err != nil {
 				log.Println("Ошибка чтения сообщения:", err)
+				ReadErrors.Inc()
 				continue
 			}
+			ReceivedMessages.Inc()
 
 			// Проверяем необходимость нового подключения
 			needNewConnection := currentFTPClient == nil ||
@@ -72,6 +75,7 @@ func (h *KafkaHandler) Start(ctx context.Context, config config.DirectoryListerK
 
 				currentFTPClient = ftpClient
 				currentParams = &msg.FTPConnection
+				FtpReconnections.Inc()
 				log.Println("directory-lister kafka-handler Start: Установлено новое FTP-соединение")
 			}
 
@@ -93,15 +97,18 @@ func (h *KafkaHandler) Start(ctx context.Context, config config.DirectoryListerK
 
 				currentFTPClient = ftpClient
 				currentParams = &msg.FTPConnection
+				FtpReconnections.Inc()
 				log.Println("directory-lister kafka-handler Start: Установлено новое FTP-соединение")
-				continue
 			}
 
 			log.Printf("directory-lister kafka-handler Start: Обработка сообщения %v\n", msg)
 			// Обработка сообщения
+			startTime := time.Now()
 			if err := h.service.ProcessDirectory(msg, currentFTPClient); err != nil {
 				log.Println("directory-lister kafka-handler Start: Ошибка обработки директории:", err)
 			}
+			duration := time.Since(startTime).Seconds()
+			ProcessingDuration.Observe(duration)
 		}
 	}
 }

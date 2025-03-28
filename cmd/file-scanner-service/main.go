@@ -8,9 +8,10 @@ import (
 	"syscall"
 
 	"ftp-scanner_try2/config"
+	filescannerservice "ftp-scanner_try2/internal/file-scanner-service"
 	"ftp-scanner_try2/internal/file-scanner-service/handler"
 	"ftp-scanner_try2/internal/file-scanner-service/scanner"
-	filescannerservice "ftp-scanner_try2/internal/file-scanner-service/service"
+	"ftp-scanner_try2/internal/file-scanner-service/service"
 	"ftp-scanner_try2/internal/kafka"
 )
 
@@ -22,6 +23,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("file-scanner-service: Ошибка загрузки конфига: %v", err)
 	}
+
+	// Инициализация метрик для file-scanner-service
+	filescannerservice.InitMetrics()
+	filescannerservice.StartPushLoop(&cfg.PushGateway)
 
 	scannerTypes := cfg.FileScanner.KafkaScanResultProducer.ScannerTypes
 	scannerMap := make(map[string]scanner.FileScanner)
@@ -59,7 +64,7 @@ func main() {
 
 	log.Printf("file-scanner-service: Создание сервиса...")
 	// Создаем сервис
-	fileScannerService := filescannerservice.NewFileScannerService(
+	fileScannerService := service.NewFileScannerService(
 		scanResultProducer,
 		counterProducer,
 		cfg.FileScanner,

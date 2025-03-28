@@ -24,6 +24,9 @@ func main() {
 		log.Fatalf("Counter Service: main: Ошибка загрузки конфига: %v", err)
 	}
 
+	statusservice.InitMetrics()
+	statusservice.StartPushLoop(&cfg.PushGateway)
+
 	log.Printf("Counter Service: main: mongoUri: %s", cfg.StatusService.Mongo.MongoUri)
 
 	log.Printf("Counter Service: main: mongoURI: %s", cfg.StatusService.Mongo.MongoUri)

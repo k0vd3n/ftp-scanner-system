@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	filescannerservice "ftp-scanner_try2/internal/file-scanner-service"
 	"ftp-scanner_try2/internal/file-scanner-service/service"
 	ftpclient "ftp-scanner_try2/internal/ftp"
 	"ftp-scanner_try2/internal/kafka"
@@ -41,12 +42,12 @@ func (h *KafkaHandler) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Остановка обработки сообщений")
+			log.Println("file-scanner kafka-handler Start: Остановка обработки сообщений")
 			return
 		default:
 			scanMsg, err := h.consumer.ReadMessage(ctx)
 			if err != nil {
-				log.Println("Ошибка чтения сообщения:", err)
+				log.Println("file-scanner kafka-handler Start: Ошибка чтения сообщения:", err)
 				continue
 			}
 
@@ -66,26 +67,40 @@ func (h *KafkaHandler) Start(ctx context.Context) {
 				)
 
 				if err != nil {
-					log.Println("Ошибка подключения к FTP:", err)
+					log.Println("file-scanner kafka-handler Start: Ошибка подключения к FTP:", err)
 					continue // Пропускаем сообщение при ошибке подключения
 				}
 
 				currentFTPClient = ftpClient
 				currentParams = &scanMsg.FTPConnection
-				log.Println("Установлено новое FTP-соединение")
+				log.Println("file-scanner kafka-handler Start: Установлено новое FTP-соединение")
 			}
 
 			// Проверка активности соединения
 			if err := currentFTPClient.CheckConnection(); err != nil {
-				log.Println("Соединение неактивно, переподключаемся...")
+				log.Println("file-scanner kafka-handler Start: FTP-Соединение неактивно, переподключаемся...")
 				currentFTPClient.Close()
-				currentFTPClient = nil
-				continue
+
+				ftpClient, err := ftpclient.NewFTPClient(
+					fmt.Sprintf("%s:%d", scanMsg.FTPConnection.Server, scanMsg.FTPConnection.Port),
+					scanMsg.FTPConnection.Username,
+					scanMsg.FTPConnection.Password,
+				)
+
+				if err != nil {
+					log.Println("file-scanner kafka-handler Start: Ошибка подключения к FTP:", err)
+					continue
+				}
+
+				currentFTPClient = ftpClient
+				currentParams = &scanMsg.FTPConnection
+				filescannerservice.FtpReconnections.Inc()
+				log.Println("file-scanner kafka-handler Start: Установлено новое FTP-соединение")
 			}
 
 			// Обработка файла
 			if err := h.service.ProcessFile(scanMsg, currentFTPClient); err != nil {
-				log.Println("Ошибка обработки файла:", err)
+				log.Println("file-scanner kafka-handler Start: Ошибка обработки файла:", err)
 				// Сбрасываем соединение при ошибке
 				currentFTPClient.Close()
 				currentFTPClient = nil

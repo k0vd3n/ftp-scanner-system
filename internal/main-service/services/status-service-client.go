@@ -5,6 +5,7 @@ import (
 	"ftp-scanner_try2/api/grpc/proto"
 	"ftp-scanner_try2/internal/models"
 	"log"
+	"time"
 )
 
 type GRPCCounterService struct {
@@ -26,9 +27,9 @@ func (s *GRPCCounterService) GetScanStatus(ctx context.Context, scanID string) (
 
 	log.Printf("Main-service: counter-client: getScanStatus: Счетчики получены для scan_id=%s: %+v", scanID, counters)
 
-	directoriesScanned := int(counters.GetDirectoriesCount())
+	directoriesFound := int(counters.GetDirectoriesCount())
 	filesScanned := int(counters.GetFilesCount())
-	directoriesFound := int(counters.GetCompletedDirectories())
+	directoriesScanned := int(counters.GetCompletedDirectories())
 	filesFound := int(counters.GetCompletedFiles())
 	log.Printf("Main-service: counter-client: getScanStatus: directoriesScanned=%d", directoriesScanned)
 	log.Printf("Main-service: counter-client: getScanStatus: filesScanned=%d", filesScanned)
@@ -42,9 +43,9 @@ func (s *GRPCCounterService) GetScanStatus(ctx context.Context, scanID string) (
 			Status:             "completed",
 			DirectoriesScanned: directoriesScanned,
 			FilesScanned:       filesScanned,
-			DirectoriesFound:   directoriesFound,
+			DirectoriesFound:   directoriesFound + 1,
 			FilesFound:         filesFound,
-			StartTime:          "TODO: get from storage",
+			StartTime:          time.Now().Format(time.RFC3339),
 		}, nil
 	} else {
 		log.Printf("Main-service: counter-client: getScanStatus: Сканирование в процессе для scan_id=%s", scanID)
@@ -53,9 +54,9 @@ func (s *GRPCCounterService) GetScanStatus(ctx context.Context, scanID string) (
 			Status:             "in_progress",
 			DirectoriesScanned: directoriesScanned,
 			FilesScanned:       filesScanned,
-			DirectoriesFound:   directoriesFound,
+			DirectoriesFound:   directoriesFound + 1,
 			FilesFound:         filesFound,
-			StartTime:          "TODO: get from storage",
+			StartTime:          time.Now().Format(time.RFC3339),
 		}, nil
 	}
 }

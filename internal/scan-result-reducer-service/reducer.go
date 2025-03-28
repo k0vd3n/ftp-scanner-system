@@ -1,24 +1,38 @@
 package scanresultreducerservice
 
 import (
+	"context"
+	"ftp-scanner_try2/config"
+	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/models"
+	"ftp-scanner_try2/internal/mongodb"
 	"log"
 	"strings"
+	"time"
 )
 
 type ReducerService interface {
 	ReduceScanResults(messages []models.ScanResultMessage) []models.ScanReport
+	Start(ctx context.Context)
 }
 
 type reducerService struct {
+	repo     mongodb.SaveReportRepository
+	cfg      config.UnifiedConfig
+	consumer kafka.KafkaScanResultReducerConsumerInterface
 }
 
-func NewReducerService() ReducerService {
-	return &reducerService{}
+func NewReducerService(repo mongodb.SaveReportRepository, cfg config.UnifiedConfig, consumer kafka.KafkaScanResultReducerConsumerInterface) ReducerService {
+	return &reducerService{
+		repo:     repo,
+		cfg:      cfg,
+		consumer: consumer,
+	}
 }
 
 func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) []models.ScanReport {
 	log.Println("scan-result-reducer-service reduce-scan-results: Начало редьюса результатов сканирования...")
+	start := time.Now()
 	scanMap := make(map[string]*models.ScanReport)
 
 	log.Printf("scan-result-reducer-service reduce-scan-results: Количество сообщений: %d", len(messages))
@@ -33,7 +47,6 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 
 		// Получаем указатель на текущий отчет
 		currentReport := scanMap[msg.ScanID]
-
 		// Разбиваем путь на директории и имя файла
 		fullPath, dirs, _ := splitPath(msg.FilePath)
 
@@ -112,8 +125,38 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 	for _, report := range scanMap {
 		groupedResults = append(groupedResults, *report)
 	}
+	duration := time.Since(start)
+	ProcessingDuration.Observe(duration.Seconds())
+	ReportsTotal.Add(float64(len(groupedResults)))
 	log.Printf("scan-result-reducer-service reduce-scan-results: Редьюс завершен. Количество отчетов: %d", len(groupedResults))
 	return groupedResults
+}
+
+func (r *reducerService) Start(ctx context.Context) {
+	for {
+		messages, err := r.consumer.ReadMessages(
+			ctx,
+			r.cfg.ScanResultReducer.Kafka.BatchSize,
+			time.Duration(r.cfg.ScanResultReducer.Kafka.Duration)*time.Second,
+		)
+		if err != nil {
+			log.Printf("scan-result-reducer-service main: Ошибка чтения сообщений из Kafka: %v", err)
+			continue
+		}
+		log.Printf("scan-result-reducer-service main: Получено %d сообщений", len(messages))
+
+		if len(messages) > 0 {
+			ReceivedMessages.Add(float64(len(messages)))
+			log.Printf("scan-result-reducer-service main: Редьюс %d сообщений...", len(messages))
+			reducedResults := r.ReduceScanResults(messages)
+			log.Printf("scan-result-reducer-service main: Сохранение %d сообщений в MongoDB...", len(reducedResults))
+			if err := r.repo.InsertScanReports(ctx, reducedResults); err != nil {
+				log.Printf("scan-result-reducer-service main: Ошибка сохранения данных в MongoDB: %v", err)
+				ErrorsTotal.Inc()
+			}
+			log.Printf("scan-result-reducer-service main: Сообщения отправлены в MongoDB")
+		}
+	}
 }
 
 // Разбиваем путь на абсолютный путь, список директорий и имя файла
@@ -122,8 +165,8 @@ func splitPath(filePath string) (string, []string, string) {
 	if len(parts) < 2 {
 		return filePath, nil, ""
 	}
-	root := "/" + parts[1]           // Корневой каталог
-	fileName := parts[len(parts)-1]   // Имя файла
+	root := "/" + parts[1]          // Корневой каталог
+	fileName := parts[len(parts)-1] // Имя файла
 
 	// Если есть поддиректории, исключаем дублирование корневой директории
 	if len(parts) > 2 {

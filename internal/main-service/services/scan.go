@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"ftp-scanner_try2/config"
 	"ftp-scanner_try2/internal/kafka"
+	mainservice "ftp-scanner_try2/internal/main-service"
 	"ftp-scanner_try2/internal/models"
 	"log"
 	"time"
@@ -40,10 +41,13 @@ func (s *KafkaScanService) StartScan(ctx context.Context, req models.ScanRequest
 
 	log.Printf("Main-service: scan: startScan: Отправка Kafka сообщения: %v", msg)
 
+	startKafka := time.Now()
 	if err := s.producer.SendMessage(s.config.DirectoriesToScanTopic, msg); err != nil {
 		log.Printf("Main-service: scan: startScan: Ошибка отправки Kafka сообщения: %v", err)
 		return nil, err
 	}
+	durationKafka := time.Since(startKafka).Seconds()
+	mainservice.KafkaPublishDuration.Observe(durationKafka)
 
 	log.Printf("Main-service: scan: startScan: Запрос на сканирование принят в обработку. scan_id=%s", scanID)
 
@@ -51,11 +55,6 @@ func (s *KafkaScanService) StartScan(ctx context.Context, req models.ScanRequest
 		ScanID:  scanID,
 		Status:  "accepted",
 		Message: "Запрос на сканирование принят в обработку.",
-		// FTPConnection: models.FTPConnection{
-		// 	Server:   req.FTPServer,
-		// 	Port:     req.FTPPort,
-		// 	Username: req.FTPUsername,
-		// },
 		StartTime: time.Now().Format(time.RFC3339),
 	}, nil
 }

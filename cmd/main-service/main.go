@@ -21,6 +21,9 @@ func main() {
 		log.Fatalf("Ошибка загрузки конфига: %v", err)
 	}
 
+	mainservice.InitMetrics()
+	mainservice.StartPushLoop(&cfg.PushGateway)
+
 	grpcReportServerAddress := cfg.MainService.GRPC.ReportServerAddress + cfg.MainService.GRPC.ReportServerPort
 	grpcStatusServerAddress := cfg.MainService.GRPC.StatusServerAddress + cfg.MainService.GRPC.StatusServerPort
 

@@ -6,7 +6,7 @@ file_scanner_service:
     consumer_group: "file-scanner-group"
   kafka_scan_result_producer:
     broker: "localhost:9092"
-    file_scan_download_path: "/home/k0vd3n/go/src/ftp-scanner_try2/scan_files"
+    file_scan_download_path: "/media/k0vd3n/Новый\ том/tmp_ftp_system/downloaded_files"
     permission: "0755"
     scanner_types: ["zero_bytes"]
     routing:
@@ -47,7 +47,7 @@ main_service:
     report_server_address: "localhost"
     report_server_port: ":50051"
     status_server_address: "localhost"
-    status_server_port: ":50052"
+    status_server_port: ":50053"
   http:
     port: ":8080"
 
@@ -55,14 +55,14 @@ counter_reducer_service:
   kafka:
     brokers:
       - "localhost:9092"
-    counter_reducer_topic: "scan-directories-count"
-    counter_reducer_group: "scan-directories-counter-reducer-group"
-    batch_size: 1000
+    counter_reducer_topic: "scan-files-count"
+    counter_reducer_group: "scan-files-count-counter-reducer-group"
+    batch_size: 100000
     duration: 60
   mongo:
     mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
     mongo_db: "testdb"
-    mongo_collection: "scan_directories_count"
+    mongo_collection: "scan_files_count"
 
 scan_result_reducer_service:
   kafka:
@@ -70,8 +70,8 @@ scan_result_reducer_service:
       - "localhost:9092"
     consumer_topic: "scan-results"
     consumer_group: "scan-results-reducer-consumer-group"
-    batch_size: 100
-    duration: 30
+    batch_size: 100000
+    duration: 60
   mongo:
     mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
     mongo_db: "testdb"
@@ -91,10 +91,15 @@ status_service:
   mongo:
     mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
     mongo_db: "testdb"
+    scan_directories_count_collection: "scan_directories_count"
+    scan_files_count_collection: "scan_files_count"
+    completed_directories_count_collection: "completed_directories_count"
+    completed_files_count_collection: "completed_files_count"
   grpc:
-    port: ":50052"
-  kafka:
-    scan_directories_count_topic: "scan_directories_count"
-    scan_files_count_topic: "scan_files_count"
-    completed_directories_count_topic: "completed_directories_count"
-    completed_files_count_topic: "completed_files_count"
+    port: ":50053"
+
+push_gateway:
+  url: "http://localhost:9091"
+  # job_name: "directory-lister-service"
+  instance: "scan_result_reducer-service"
+  push_interval: 20

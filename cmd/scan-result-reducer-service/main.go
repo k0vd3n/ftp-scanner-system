@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -25,6 +24,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("scan-result-reducer-service main: Ошибка загрузки конфига: %v", err)
 	}
+
+	scanresultreducerservice.InitMetrics()
+	scanresultreducerservice.StartPushLoop(&cfg.PushGateway)
 
 	log.Printf("scan-result-reducer-service main: Подключение к MongoDB")
 	log.Printf("scan-result-reducer-service main: MongoDB URI: %s", cfg.ScanResultReducer.Mongo.MongoUri)
@@ -48,7 +50,6 @@ func main() {
 		cfg.ScanResultReducer.Mongo.MongoDb,
 		cfg.ScanResultReducer.Mongo.MongoCollection,
 	)
-	service := scanresultreducerservice.NewReducerService()
 
 	log.Printf("scan-result-reducer-service main: Инициализация Kafka-консьюмера...")
 	// Инициализация Kafka-консьюмера
@@ -65,36 +66,14 @@ func main() {
 	)
 	defer consumer.CloseReader()
 
+	service := scanresultreducerservice.NewReducerService(repo, *cfg, consumer)
 	// Контекст для graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Горутинa для обработки сообщений
 	log.Println("scan-result-reducer-service main: Запуск обработки сообщений...")
-	go func() {
-		for {
-			messages, err := consumer.ReadMessages(
-				ctx,
-				cfg.ScanResultReducer.Kafka.BatchSize,
-				time.Duration(cfg.ScanResultReducer.Kafka.Duration)*time.Second,
-			)
-			if err != nil {
-				log.Printf("scan-result-reducer-service main: Ошибка чтения сообщений из Kafka: %v", err)
-				continue
-			}
-			log.Printf("scan-result-reducer-service main: Получено %d сообщений", len(messages))
 
-			if len(messages) != 0 {
-				log.Printf("scan-result-reducer-service main: Редьюс %d сообщений...", len(messages))
-				reducedResults := service.ReduceScanResults(messages)
-				log.Printf("scan-result-reducer-service main: Сохранение %d сообщений в MongoDB...", len(reducedResults))
-				if err := repo.InsertScanReports(ctx, reducedResults); err != nil {
-					log.Printf("scan-result-reducer-service main: Ошибка сохранения данных в MongoDB: %v", err)
-				}
-				log.Printf("scan-result-reducer-service main: Сообщения отправлены в MongoDB")
-			}
-
-		}
-	}()
+	go service.Start(ctx)
 
 	// Ожидание сигнала завершения
 	stop := make(chan os.Signal, 1)

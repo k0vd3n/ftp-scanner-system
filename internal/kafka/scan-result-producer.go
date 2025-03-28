@@ -28,8 +28,8 @@ func NewScanResultProducer(
 	writer := &kafka.Writer{
 		Addr:         kafka.TCP(broker),
 		Balancer:     &kafka.LeastBytes{},
-		BatchSize:    1,
-		BatchTimeout: 0,
+		BatchSize:    100,
+		BatchTimeout: 10,
 	}
 
 	return &KafkaScanResultProducer{

@@ -87,6 +87,9 @@ func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID
 		{config.CompletedFilesCount, &counters.CompletedFiles},
 	}
 
+	log.Printf("MongoDB: Получение счетчиков из коллекций %s, %s, %s, %s для scan_id=%s\n",
+		config.ScanDirectoriesCount, config.ScanFilesCount, config.CompletedDirectoriesCount, config.CompletedFilesCount, scanID)
+
 	for _, mapping := range mappings {
 		collection := r.client.Database(r.database).Collection(mapping.CollectionName)
 		log.Printf("MongoDB: Получение счетчиков из коллекции %s для scan_id: %s\n", mapping.CollectionName, scanID)

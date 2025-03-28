@@ -5,9 +5,12 @@ import (
 	"ftp-scanner_try2/internal/models"
 	"log"
 	"net/http"
+	"time"
 )
 
 func (s *MainServer) HandleStartScan(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	RequestsTotal.Inc()
 	var req models.ScanRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Printf("Main-service: handlers: startScan: Ошибка декодирования запроса: %v", err)
@@ -47,7 +50,9 @@ func (s *MainServer) HandleStartScan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Запуск сканирования
+	startScanTime := time.Now()
 	resp, err := s.StartScan(r.Context(), req)
+	ProcessingStartScanMethod.Observe(time.Since(startScanTime).Seconds())
 	if err != nil {
 		log.Printf("Main-service: handlers: startScan: Ошибка запуска сканирования: %v", err)
 		http.Error(w, "Не удалось запустить сканирование", http.StatusInternalServerError)
@@ -57,10 +62,15 @@ func (s *MainServer) HandleStartScan(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+	duration := time.Since(start).Seconds()
+	log.Printf("Main-service: handlers: время запуска сканирования: %f", duration)
+	ProcessingScanRequest.Observe(duration)
 	log.Printf("Main-service: handlers: Сканирование запущено")
 }
 
 func (s *MainServer) HandleGetScanStatus(w http.ResponseWriter, r *http.Request) {
+	startTimeRequest := time.Now()
+	RequestsTotal.Inc()
 	log.Printf("Main-service: handlers: Получение статуса сканирования...")
 	scanID := r.URL.Query().Get("scan_id")
 	if scanID == "" {
@@ -69,8 +79,10 @@ func (s *MainServer) HandleGetScanStatus(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	startGetScanStatusTime := time.Now()
 	// Получение статуса сканирования
 	resp, err := s.GetScanStatus(r.Context(), scanID)
+	GRPCStatusCallDuration.Observe(time.Since(startGetScanStatusTime).Seconds())
 	if err != nil {
 		log.Printf("Main-service: handlers: getScanStatus: Ошибка получения статуса сканирования: %v", err)
 		http.Error(w, "Ошибка получения статуса сканирования", http.StatusInternalServerError)
@@ -80,10 +92,14 @@ func (s *MainServer) HandleGetScanStatus(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+
+	ProcessingStatusRequest.Observe(time.Since(startTimeRequest).Seconds())
 	log.Printf("Main-service: handlers: getScanStatus: Статус сканирования отправлен")
 }
 
 func (s *MainServer) HandleGetReport(w http.ResponseWriter, r *http.Request) {
+	startTimeRequest := time.Now()
+	RequestsTotal.Inc()
 	log.Printf("Main-service: handlers: getReport: Получение отчета...")
 	scanID := r.URL.Query().Get("scan_id")
 	log.Printf("Main-service: handlers: getReport: scan_id: %s", scanID)
@@ -94,7 +110,9 @@ func (s *MainServer) HandleGetReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Получение отчета
+	startGetReportTime := time.Now()
 	resp, err := s.GetReport(r.Context(), scanID)
+	GRPCReportCallDuration.Observe(time.Since(startGetReportTime).Seconds())
 	if err != nil {
 		log.Printf("Main-service: handlers: getReport: Ошибка получения отчета: %v", err)
 		http.Error(w, "Ошибка получения отчета", http.StatusInternalServerError)
@@ -104,4 +122,6 @@ func (s *MainServer) HandleGetReport(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+	ProcessingReportRequest.Observe(time.Since(startTimeRequest).Seconds())
+	log.Printf("Main-service: handlers: getReport: Отчет отправлен")
 }

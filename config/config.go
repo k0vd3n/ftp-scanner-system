@@ -27,6 +27,7 @@ type UnifiedConfig struct {
 	ScanResultReducer ScanResultReducerConfig `yaml:"scan_result_reducer_service"`
 	ReportService     ReportServiceConfig     `yaml:"report_service"`
 	StatusService     StatusServiceConfig     `yaml:"status_service"`
+	PushGateway       PushGatewayConfig       `yaml:"push_gateway"`
 }
 
 type FileScannerConfig struct {
@@ -175,4 +176,12 @@ type StatusServiceMongo struct {
 
 type StatusServiceGrpc struct {
 	Port string `yaml:"port"`
+}
+
+type PushGatewayConfig struct {
+	URL          string `yaml:"url"`
+	JobName      string `yaml:"job_name"`
+	Instance     string `yaml:"instance"`
+	PushInterval int    `yaml:"push_interval"`
+	
 }

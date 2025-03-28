@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"ftp-scanner_try2/config"
+	filescannerservice "ftp-scanner_try2/internal/file-scanner-service"
 	"ftp-scanner_try2/internal/file-scanner-service/scanner"
 	ftpclient "ftp-scanner_try2/internal/ftp"
 	"ftp-scanner_try2/internal/kafka"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 type FileScannerService interface {
@@ -40,7 +42,7 @@ func NewFileScannerService(
 
 func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpClient ftpclient.FtpClientInterface) error {
 	log.Printf("file-scanner-service service: Сканируем файл: %s", scanMsg.FilePath)
-
+	filescannerservice.ReceivedMessages.Inc()
 	// Скачиваем файл
 	localDir := filepath.Join(s.config.KafkaScanResultProducer.FileScanDownloadPath, scanMsg.ScanID)
 	perm, err := strconv.ParseUint(s.config.KafkaScanResultProducer.Permision, 8, 32)
@@ -54,12 +56,17 @@ func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpCli
 		return err
 	}
 
+	startDownload := time.Now()
 	if err := ftpClient.DownloadFile(scanMsg.FilePath, localDir); err != nil {
 		log.Printf("file-scanner-service service: Ошибка при скачивании файла %s: %v", scanMsg.FilePath, err)
 		return err
 	}
 
 	// Сканируем файл
+	downloadTime := time.Since(startDownload).Seconds()
+	filescannerservice.DownloadDuration.Observe(downloadTime)
+
+	startScan := time.Now()
 	scanner, exists := s.scannerMap[scanMsg.ScanType]
 	if !exists {
 		log.Printf("file-scanner-service service: Тип сканирования не поддерживается: %s", scanMsg.ScanType)
@@ -71,8 +78,9 @@ func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpCli
 		log.Printf("file-scanner-service service: Ошибка при сканировании файла %s: %v", scanMsg.FilePath, err)
 		return err
 	}
+	scanTime := time.Since(startScan).Seconds()
+	filescannerservice.ScanDuration.Observe(scanTime)
 	log.Printf("file-scanner-service service: Результат сканирования: %s", result)
-
 	log.Printf("file-scanner-service service: Отправляем результат в топик сканирования")
 	// Отправляем результат в Kafka
 	if err := s.scanResultProducer.SendMessage(models.ScanResultMessage{
@@ -82,6 +90,7 @@ func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpCli
 		Result:   result,
 	}); err != nil {
 		log.Printf("file-scanner-service service: Ошибка при отправке результата сканирования в Kafka: %v", err)
+		filescannerservice.ErrorCounter.Inc()
 		// return err
 	}
 	log.Printf("file-scanner-service service: Отправка результатов сканирования завершена")
@@ -95,7 +104,10 @@ func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpCli
 	// Отправляем количество завершенных файлов
 	if err := s.counterProducer.SendMessage(s.config.KafkaCompletedFilesCountProducer.CompletedFilesCountTopic, countMessage); err != nil {
 		log.Printf("file-scanner-service service: Ошибка при отправке количества отсканированных файлов в Kafka: %v", err)
+		filescannerservice.ErrorCounter.Inc()
 		// return err
+	} else {
+		filescannerservice.CompletedFilesSent.Inc()
 	}
 	log.Printf("file-scanner-service service: Отправка количества завершенных файлов завершена")
 
