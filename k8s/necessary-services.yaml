@@ -1,0 +1,424 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+    spec:
+      containers:
+      - name: zookeeper
+        image: confluentinc/cp-zookeeper:latest
+        ports:
+        - containerPort: 2181
+        env:
+        - name: ZOOKEEPER_CLIENT_PORT
+          value: "2181"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper
+spec:
+  ports:
+  - port: 2181
+    targetPort: 2181
+  selector:
+    app: zookeeper
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+      - name: kafka
+        image: confluentinc/cp-kafka:latest
+        ports:
+        - containerPort: 9092
+        env:
+        - name: KAFKA_SOCKET_SEND_BUFFER_BYTES
+          value: "1048576"
+        - name: KAFKA_SOCKET_RECEIVE_BUFFER_BYTES
+          value: "1048576"
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "zookeeper:2181"
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "PLAINTEXT://kafka-broker:9092"  # изменили на DNS-имя сервиса
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        volumeMounts:
+        - name: kafka-data
+          mountPath: /kafka
+      volumes:
+      - name: kafka-data
+        persistentVolumeClaim:
+          claimName: kafka-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-broker   # сервис переименован
+spec:
+  ports:
+  - port: 9092
+    targetPort: 9092
+  selector:
+    app: kafka
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-setup-script
+data:
+  kafka-setup.sh: |
+    #!/bin/bash
+    set -e
+    # ожидание старта Kafka; при необходимости увеличьте задержку
+    sleep 10
+    kafka-topics --create --topic directories-to-scan --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic files-to-scan --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic scan-results --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic scan-results-2 --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic aggregated-results --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic empty-result-topic --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic small-result-topic --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic medium-result-topic --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic large-result-topic --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic scan-directories-count --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic scan-files-count --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic completed-directories-count --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --create --topic completed-files-count --bootstrap-server kafka-broker:9092 --partitions 1 --replication-factor 1
+    kafka-topics --bootstrap-server kafka-broker:9092 --alter --topic directories-to-scan --partitions 300
+    kafka-topics --bootstrap-server kafka-broker:9092 --alter --topic files-to-scan --partitions 300
+    kafka-topics --bootstrap-server kafka-broker:9092 --alter --topic scan-results --partitions 300
+    kafka-topics --bootstrap-server kafka-broker:9092 --alter --topic empty-result-topic --partitions 300
+    kafka-topics --bootstrap-server kafka-broker:9092 --alter --topic small-result-topic --partitions 300
+    kafka-topics --bootstrap-server kafka-broker:9092 --alter --topic medium-result-topic --partitions 300
+    kafka-topics --bootstrap-server kafka-broker:9092 --alter --topic large-result-topic --partitions 300
+    kafka-topics --bootstrap-server kafka-broker:9092 --alter --topic scan-directories-count --partitions 300
+    kafka-topics --bootstrap-server kafka-broker:9092 --alter --topic scan-files-count --partitions 300
+    kafka-topics --bootstrap-server kafka-broker:9092 --alter --topic completed-directories-count --partitions 300
+    kafka-topics --bootstrap-server kafka-broker:9092 --alter --topic completed-files-count --partitions 300
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-setup
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: kafka-setup
+        image: confluentinc/cp-kafka:latest
+        command: ["/bin/bash", "/scripts/kafka-setup.sh"]
+        volumeMounts:
+        - name: setup-script
+          mountPath: /scripts
+      volumes:
+      - name: setup-script
+        configMap:
+          name: kafka-setup-script
+          defaultMode: 0777
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+
+    scrape_configs:
+      - job_name: 'pushgateway'
+        honor_labels: true
+        static_configs:
+          - targets: ['pushgateway:9091']
+      - job_name: 'directory-lister-service'
+        static_configs:
+          - targets: ['directory-lister-service:2112']
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+      - name: prometheus
+        image: prom/prometheus:latest
+        args:
+          - '--config.file=/etc/prometheus/prometheus.yml'
+        ports:
+        - containerPort: 9090
+        volumeMounts:
+        - name: prometheus-config
+          mountPath: /etc/prometheus/prometheus.yml
+          subPath: prometheus.yml
+        resources:
+          limits:
+            memory: "3Gi"
+          requests:
+            memory: "2Gi"
+      volumes:
+      - name: prometheus-config
+        configMap:
+          name: prometheus-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+spec:
+  ports:
+  - port: 9090
+    targetPort: 9090
+  selector:
+    app: prometheus
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pushgateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pushgateway
+  template:
+    metadata:
+      labels:
+        app: pushgateway
+    spec:
+      containers:
+      - name: pushgateway
+        image: prom/pushgateway:latest
+        ports:
+        - containerPort: 9091
+        resources:
+          limits:
+            memory: "3Gi"
+          requests:
+            memory: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pushgateway
+spec:
+  ports:
+  - port: 9091
+    targetPort: 9091
+  selector:
+    app: pushgateway
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+data:
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin"
+        volumeMounts:
+        - name: grafana-datasources
+          mountPath: /etc/grafana/provisioning/datasources
+      volumes:
+      - name: grafana-datasources
+        configMap:
+          name: grafana-datasources
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+spec:
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: grafana
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:5.0
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: "testuser"
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: "testpassword"
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /data/db
+      volumes:
+      - name: mongo-data
+        persistentVolumeClaim:
+          claimName: mongo-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+  selector:
+    app: mongodb
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ftp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ftp
+  template:
+    metadata:
+      labels:
+        app: ftp
+    spec:
+      containers:
+      - name: ftp
+        image: stilliard/pure-ftpd
+        ports:
+        - containerPort: 21
+        - containerPort: 30000  # пример одного порта из диапазона
+        env:
+        - name: FTP_USER_NAME
+          value: "user1"
+        - name: FTP_USER_PASS
+          value: "pass"
+        - name: FTP_USER_HOME
+          value: "/home/ftp"
+        - name: PASV_ADDRESS
+          value: "ftp"
+        - name: FTP_MAX_CLIENTS
+          value: "50"
+        - name: FTP_MAX_CONNECTIONS
+          value: "50"
+        - name: FTP_PASSIVE_PORTS
+          value: "30000:30099"
+        - name: FTP_ACCESS_MODE
+          value: "0777"
+        volumeMounts:
+        - name: ftp-data
+          mountPath: /home/ftp
+      volumes:
+      - name: ftp-data
+        hostPath:
+          path: "/media/k0vd3n/Новый том/tmp_ftp_system"
+          type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ftp
+spec:
+  type: NodePort
+  selector:
+    app: ftp
+  ports:
+  - name: ftp
+    port: 21
+    targetPort: 21
+    nodePort: 32121  # выберите допустимый порт в диапазоне NodePort
+  - name: ftp-passive
+    port: 30000
+    targetPort: 30000
+    nodePort: 32000  # аналогично – для демонстрации одного из портов
+---
+

@@ -67,7 +67,8 @@ type RoutingConfig struct {
 }
 
 type DirectoryListerConfig struct {
-	Kafka DirectoryListerKafkaConfig `yaml:"kafka"`
+	Kafka   DirectoryListerKafkaConfig `yaml:"kafka"`
+	Metrics DirectoryListerPrometheus  `yaml:"metrics"`
 }
 
 type DirectoryListerKafkaConfig struct {
@@ -79,6 +80,11 @@ type DirectoryListerKafkaConfig struct {
 	FilesToScanTopic               string `yaml:"files_to_scan_topic"`
 	ScanFilesCountTopic            string `yaml:"scan_files_count_topic"`
 	CompletedDirectoriesCountTopic string `yaml:"completed_directories_count_topic"`
+}
+
+type DirectoryListerPrometheus struct {
+	PromHttpPort  string `yaml:"prom_http_port"`
+	InstanceLabel string `yaml:"instance"`
 }
 
 type MainServiceConfig struct {
@@ -183,5 +189,4 @@ type PushGatewayConfig struct {
 	JobName      string `yaml:"job_name"`
 	Instance     string `yaml:"instance"`
 	PushInterval int    `yaml:"push_interval"`
-	
 }

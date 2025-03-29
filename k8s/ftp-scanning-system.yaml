@@ -1,0 +1,567 @@
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: development
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ftp-scanner-config
+  namespace: default
+data:
+  # Используются плейсхолдеры для секции counter_reducer_service,
+  # чтобы их можно было переопределять через переменные окружения (envsubst)
+  config.yaml: |-
+    file_scanner_service:
+      kafka_consumer:
+        brokers:
+          - "kafka-broker:9092"
+        consumer_topic: "files-to-scan"
+        consumer_group: "file-scanner-group"
+      kafka_scan_result_producer:
+        broker: "kafka-broker:9092"
+        file_scan_download_path: "/tmp/downloaded_files"
+        permission: "0755"
+        scanner_types: ["zero_bytes"]
+        routing:
+          default_topic: "scan-results"
+          rules:
+            - scan_type: "zero_bytes"
+              trigger_value: "0"
+              output_topics: ["empty-result-topic"]
+            - scan_type: "zero_bytes" 
+              trigger_value: "0-256"
+              output_topics: ["small-result-topic"]
+            - scan_type: "zero_bytes"
+              trigger_value: "256-512"
+              output_topics: ["medium-result-topic"]
+            - scan_type: "zero_bytes"
+              trigger_value: "512-"
+              output_topics: ["large-result-topic"]
+    directory_lister_service:
+      kafka:
+        broker: "kafka-broker:9092"
+        consumer_topic: "directories-to-scan"
+        consumer_group: "dir-lister-group"
+        directories_to_scan_topic: "directories-to-scan"
+        scan_directories_count_topic: "scan-directories-count"
+        files_to_scan_topic: "files-to-scan"
+        scan_files_count_topic: "scan-files-count"
+        completed_directories_count_topic: "completed-directories-count"
+      metrics:
+        instance: "instance1"
+        prom_http_port: ":2112"
+    main_service:
+      kafka:
+        broker: "kafka-broker:9092"
+        directory_topic: "directories-to-scan"
+      grpc:
+        report_server_address: "report-service"
+        report_server_port: ":50051"
+        status_server_address: "status-service"
+        status_server_port: ":50053"
+      http:
+        port: ":8080"
+    # Базовая конфигурация для counter_reducer_service.
+    # Здесь используются переменные, которые будут переопределяться в разных деплойментах.
+    counter_reducer_service:
+      kafka:
+        brokers:
+          - "kafka-broker:9092"
+        counter_reducer_topic: "${COUNTER_REDUCER_TOPIC}"
+        counter_reducer_group: "${COUNTER_REDUCER_GROUP}"
+        batch_size: 100000
+        duration: 60
+      mongo:
+        mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
+        mongo_db: "testdb"
+        mongo_collection: "${MONGO_COLLECTION}"
+    scan_result_reducer_service:
+      kafka:
+        brokers:
+          - "kafka-broker:9092"
+        consumer_topic: "scan-results"
+        consumer_group: "scan-results-reducer-consumer-group"
+        batch_size: 100000
+        duration: 60
+      mongo:
+        mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
+        mongo_db: "testdb"
+        mongo_collection: "scan_reports"
+    report_service:
+      mongo: 
+        mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
+        mongo_db: "testdb"
+        mongo_collection: "scan_reports"
+      grpc:
+        server_port: ":50051"
+      repository:
+        directory: "/home/k0vd3n/go/src/ftp-scanner_try2/reports"
+    status_service: 
+      mongo:
+        mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
+        mongo_db: "testdb"
+        scan_directories_count_collection: "scan_directories_count"
+        scan_files_count_collection: "scan_files_count"
+        completed_directories_count_collection: "completed_directories_count"
+        completed_files_count_collection: "completed_files_count"
+      grpc:
+        port: ":50053"
+    push_gateway:
+      url: "http://pushgateway:9091"
+      job_name: "main-service"
+      instance: "main-service"
+      push_interval: 15
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: main-service
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: main-service
+  template:
+    metadata:
+      labels:
+        app: main-service
+    spec:
+      containers:
+      - name: main-service
+        image: k0vd3n/main-service:v0.0.1
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config/config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: config-volume
+        configMap:
+          name: ftp-scanner-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: main-service
+  namespace: default
+spec:
+  selector:
+    app: main-service
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: directory-lister-service
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: directory-lister-service
+  template:
+    metadata:
+      labels:
+        app: directory-lister-service
+    spec:
+      containers:
+      - name: directory-lister-service
+        image: k0vd3n/directory-lister-service:v0.0.1
+        ports:
+        - containerPort: 2112  # для экспорта метрик, если требуется
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config/config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: config-volume
+        configMap:
+          name: ftp-scanner-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: directory-lister-service
+  namespace: default
+spec:
+  selector:
+    app: directory-lister-service
+  ports:
+  - name: metrics
+    port: 2112
+    targetPort: 2112
+---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: file-scanner-service
+#   namespace: default
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: file-scanner-service
+#   template:
+#     metadata:
+#       labels:
+#         app: file-scanner-service
+#     spec:
+#       containers:
+#       - name: file-scanner-service
+#         image: k0vd3n/file-scanner-service:v0.0.1
+#         volumeMounts:
+#         - name: config-volume
+#           mountPath: /app/config/config.yaml
+#           subPath: config.yaml
+#       volumes:
+#       - name: config-volume
+#         configMap:
+#           name: ftp-scanner-config
+#           items:
+#           - key: config.yaml
+#             path: config.yaml
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: counter-reducer-scan-files
+#   namespace: default
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: counter-reducer-scan-files
+#   template:
+#     metadata:
+#       labels:
+#         app: counter-reducer-scan-files
+#     spec:
+#       initContainers:
+#       - name: config-init
+#         image: alpine:v0.0.1
+#         command:
+#           - /bin/sh
+#           - -c
+#           - |
+#             apk add --no-cache gettext &&
+#             envsubst < /config/config.yaml > /app/config/config.yaml
+#         env:
+#           - name: COUNTER_REDUCER_TOPIC
+#             value: "scan-files-count"
+#           - name: COUNTER_REDUCER_GROUP
+#             value: "scan-files-count-counter-reducer-group"
+#           - name: MONGO_COLLECTION
+#             value: "scan_files_count"
+#         volumeMounts:
+#           - name: config-volume
+#             mountPath: /config
+#             readOnly: true
+#           - name: app-config
+#             mountPath: /app/config
+#       containers:
+#       - name: counter-reducer-service
+#         image: k0vd3n/counter-reducer-service:v0.0.1
+#         volumeMounts:
+#           - name: app-config
+#             mountPath: /app/config
+#       volumes:
+#       - name: config-volume
+#         configMap:
+#           name: ftp-scanner-config
+#           items:
+#           - key: config.yaml
+#             path: config.yaml
+#       - name: app-config
+#         emptyDir: {}
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: counter-reducer-completed-files
+#   namespace: default
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: counter-reducer-completed-files
+#   template:
+#     metadata:
+#       labels:
+#         app: counter-reducer-completed-files
+#     spec:
+#       initContainers:
+#       - name: config-init
+#         image: alpine:v0.0.1
+#         command:
+#           - /bin/sh
+#           - -c
+#           - |
+#             apk add --no-cache gettext &&
+#             envsubst < /config/config.yaml > /app/config/config.yaml
+#         env:
+#           - name: COUNTER_REDUCER_TOPIC
+#             value: "completed-files-count"
+#           - name: COUNTER_REDUCER_GROUP
+#             value: "completed-files-count-counter-reducer-group"
+#           - name: MONGO_COLLECTION
+#             value: "completed_files_count"
+#         volumeMounts:
+#           - name: config-volume
+#             mountPath: /config
+#             readOnly: true
+#           - name: app-config
+#             mountPath: /app/config
+#       containers:
+#       - name: counter-reducer-service
+#         image: k0vd3n/counter-reducer-service:v0.0.1
+#         volumeMounts:
+#           - name: app-config
+#             mountPath: /app/config
+#       volumes:
+#       - name: config-volume
+#         configMap:
+#           name: ftp-scanner-config
+#           items:
+#           - key: config.yaml
+#             path: config.yaml
+#       - name: app-config
+#         emptyDir: {}
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: counter-reducer-completed-directories
+#   namespace: default
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: counter-reducer-completed-directories
+#   template:
+#     metadata:
+#       labels:
+#         app: counter-reducer-completed-directories
+#     spec:
+#       initContainers:
+#       - name: config-init
+#         image: alpine:v0.0.1
+#         command:
+#           - /bin/sh
+#           - -c
+#           - |
+#             apk add --no-cache gettext &&
+#             envsubst < /config/config.yaml > /app/config/config.yaml
+#         env:
+#           - name: COUNTER_REDUCER_TOPIC
+#             value: "completed-directories-count"
+#           - name: COUNTER_REDUCER_GROUP
+#             value: "completed-directories-count-counter-reducer-group"
+#           - name: MONGO_COLLECTION
+#             value: "completed_directories_count"
+#         volumeMounts:
+#           - name: config-volume
+#             mountPath: /config
+#             readOnly: true
+#           - name: app-config
+#             mountPath: /app/config
+#       containers:
+#       - name: counter-reducer-service
+#         image: k0vd3n/counter-reducer-service:v0.0.1
+#         volumeMounts:
+#           - name: app-config
+#             mountPath: /app/config
+#       volumes:
+#       - name: config-volume
+#         configMap:
+#           name: ftp-scanner-config
+#           items:
+#           - key: config.yaml
+#             path: config.yaml
+#       - name: app-config
+#         emptyDir: {}
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: counter-reducer-scan-directories
+#   namespace: default
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: counter-reducer-scan-directories
+#   template:
+#     metadata:
+#       labels:
+#         app: counter-reducer-scan-directories
+#     spec:
+#       initContainers:
+#       - name: config-init
+#         image: alpine:v0.0.1
+#         command:
+#           - /bin/sh
+#           - -c
+#           - |
+#             apk add --no-cache gettext &&
+#             envsubst < /config/config.yaml > /app/config/config.yaml
+#         env:
+#           - name: COUNTER_REDUCER_TOPIC
+#             value: "scan-directories-count"
+#           - name: COUNTER_REDUCER_GROUP
+#             value: "scan-directories-count-counter-reducer-group"
+#           - name: MONGO_COLLECTION
+#             value: "scan_directories_count"
+#         volumeMounts:
+#           - name: config-volume
+#             mountPath: /config
+#             readOnly: true
+#           - name: app-config
+#             mountPath: /app/config
+#       containers:
+#       - name: counter-reducer-service
+#         image: k0vd3n/counter-reducer-service:v0.0.1
+#         volumeMounts:
+#           - name: app-config
+#             mountPath: /app/config
+#       volumes:
+#       - name: config-volume
+#         configMap:
+#           name: ftp-scanner-config
+#           items:
+#           - key: config.yaml
+#             path: config.yaml
+#       - name: app-config
+#         emptyDir: {}
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: scan-result-reducer-service
+#   namespace: default
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: scan-result-reducer-service
+#   template:
+#     metadata:
+#       labels:
+#         app: scan-result-reducer-service
+#     spec:
+#       containers:
+#       - name: scan-result-reducer-service
+#         image: k0vd3n/scan-result-reducer-service:v0.0.1
+#         volumeMounts:
+#         - name: config-volume
+#           mountPath: /app/config/config.yaml
+#           subPath: config.yaml
+#       volumes:
+#       - name: config-volume
+#         configMap:
+#           name: ftp-scanner-config
+#           items:
+#           - key: config.yaml
+#             path: config.yaml
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: status-service
+#   namespace: default
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: status-service
+#   template:
+#     metadata:
+#       labels:
+#         app: status-service
+#     spec:
+#       containers:
+#       - name: status-service
+#         image: k0vd3n/status-service:v0.0.1
+#         ports:
+#         - containerPort: 50053
+#         volumeMounts:
+#         - name: config-volume
+#           mountPath: /app/config/config.yaml
+#           subPath: config.yaml
+#       volumes:
+#       - name: config-volume
+#         configMap:
+#           name: ftp-scanner-config
+#           items:
+#           - key: config.yaml
+#             path: config.yaml
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: status-service
+#   namespace: default
+# spec:
+#   selector:
+#     app: status-service
+#   ports:
+#   - name: grpc
+#     port: 50053
+#     targetPort: 50053
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: report-service
+#   namespace: default
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: report-service
+#   template:
+#     metadata:
+#       labels:
+#         app: report-service
+#     spec:
+#       containers:
+#       - name: report-service
+#         image: k0vd3n/report-service:v0.0.1
+#         ports:
+#         - containerPort: 50051
+#         volumeMounts:
+#         - name: config-volume
+#           mountPath: /app/config/config.yaml
+#           subPath: config.yaml
+#       volumes:
+#       - name: config-volume
+#         configMap:
+#           name: ftp-scanner-config
+#           items:
+#           - key: config.yaml
+#             path: config.yaml
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: report-service
+#   namespace: default
+# spec:
+#   selector:
+#     app: report-service
+#   ports:
+#   - name: grpc
+#     port: 50051
+#     targetPort: 50051
+---

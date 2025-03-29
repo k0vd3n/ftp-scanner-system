@@ -38,6 +38,9 @@ directory_lister_service:
     files_to_scan_topic: "files-to-scan"
     scan_files_count_topic: "scan-files-count"
     completed_directories_count_topic: "completed-directories-count"
+  metrics:
+    instance: "instance1"
+    prom_http_port: ":2112"
 
 main_service:
   kafka:
@@ -55,14 +58,14 @@ counter_reducer_service:
   kafka:
     brokers:
       - "localhost:9092"
-    counter_reducer_topic: "scan-files-count"
-    counter_reducer_group: "scan-files-count-counter-reducer-group"
+    counter_reducer_topic: "scan-directories-count"
+    counter_reducer_group: "scan-directories-count-counter-reducer-group"
     batch_size: 100000
     duration: 60
   mongo:
     mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
     mongo_db: "testdb"
-    mongo_collection: "scan_files_count"
+    mongo_collection: "scan_directories_count"
 
 scan_result_reducer_service:
   kafka:
@@ -100,6 +103,6 @@ status_service:
 
 push_gateway:
   url: "http://localhost:9091"
-  # job_name: "directory-lister-service"
+  job_name: "main-service"
   instance: "scan_result_reducer-service"
   push_interval: 20
