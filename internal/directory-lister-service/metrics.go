@@ -23,8 +23,18 @@ var (
 	KafkaMessagesSentDirectories prometheus.Counter
 	kafkaMessagesSentFilesVec    *prometheus.CounterVec
 	KafkaMessagesSentFiles       prometheus.Counter
-	kafkaMessagesSentCountsVec   *prometheus.CounterVec
-	KafkaMessagesSentCounts      prometheus.Counter
+	kafkaMessagesReturnedDirsVec *prometheus.CounterVec
+	KafkaMessagesReturnedDirs    prometheus.Counter
+
+	kafkaMessagesSentScanFilesCountVec *prometheus.CounterVec
+	KafkaMessagesSentScanFilesCount    prometheus.Counter
+
+	kafkaMessagesSentScanDirsCountVec *prometheus.CounterVec
+	KafkaMessagesSentScanDirsCount    prometheus.Counter
+
+	kafkaMessagesSentCompletedDirsCountVec *prometheus.CounterVec
+	KafkaMessagesSentCompletedDirsCount    prometheus.Counter
+
 	kafkaSendErrorsVec           *prometheus.CounterVec
 	KafkaSendErrors              prometheus.Counter
 )
@@ -97,10 +107,31 @@ func InitMetrics(instance string) {
 		},
 		[]string{"instance"},
 	)
-	kafkaMessagesSentCountsVec = prometheus.NewCounterVec(
+	kafkaMessagesReturnedDirsVec = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "directory_lister_kafka_messages_sent_counts_total",
-			Help: "Количество отправленных сообщений с подсчетом элементов",
+			Name: "directory_lister_kafka_messages_returned_directories_total",
+			Help: "Количество возвращенных сообщений с директориями",
+		},
+		[]string{"instance"},
+	)
+	kafkaMessagesSentScanFilesCountVec = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "directory_lister_kafka_messages_sent_scan_files_count_total",
+			Help: "Количество отправленных сообщений с подсчетом файлов",
+		},
+		[]string{"instance"},
+	)
+	kafkaMessagesSentScanDirsCountVec = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "directory_lister_kafka_messages_sent_scan_dirs_count_total",
+			Help: "Количество отправленных сообщений с подсчетом директорий",
+		},
+		[]string{"instance"},
+	)
+	kafkaMessagesSentCompletedDirsCountVec = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "directory_lister_kafka_messages_sent_completed_dirs_count_total",
+			Help: "Количество отправленных сообщений с подсчетом завершенных директорий",
 		},
 		[]string{"instance"},
 	)
@@ -123,7 +154,10 @@ func InitMetrics(instance string) {
 		ftpListDurationVec,
 		kafkaMessagesSentDirsVec,
 		kafkaMessagesSentFilesVec,
-		kafkaMessagesSentCountsVec,
+		kafkaMessagesReturnedDirsVec,
+		kafkaMessagesSentScanFilesCountVec,
+		kafkaMessagesSentScanDirsCountVec,
+		kafkaMessagesSentCompletedDirsCountVec,
 		kafkaSendErrorsVec,
 	)
 
@@ -137,6 +171,9 @@ func InitMetrics(instance string) {
 	FtpListDuration = ftpListDurationVec.WithLabelValues(instance).(prometheus.Histogram)
 	KafkaMessagesSentDirectories = kafkaMessagesSentDirsVec.WithLabelValues(instance)
 	KafkaMessagesSentFiles = kafkaMessagesSentFilesVec.WithLabelValues(instance)
-	KafkaMessagesSentCounts = kafkaMessagesSentCountsVec.WithLabelValues(instance)
+	KafkaMessagesReturnedDirs = kafkaMessagesReturnedDirsVec.WithLabelValues(instance)
+	KafkaMessagesSentScanFilesCount = kafkaMessagesSentScanFilesCountVec.WithLabelValues(instance)
+	KafkaMessagesSentScanDirsCount = kafkaMessagesSentScanDirsCountVec.WithLabelValues(instance)
+	KafkaMessagesSentCompletedDirsCount = kafkaMessagesSentCompletedDirsCountVec.WithLabelValues(instance)
 	KafkaSendErrors = kafkaSendErrorsVec.WithLabelValues(instance)
 }

@@ -2,6 +2,7 @@ package ftpclient
 
 import (
 	"fmt"
+	filescannerservice "ftp-scanner_try2/internal/file-scanner-service"
 	"io"
 	"log"
 	"os"
@@ -9,36 +10,39 @@ import (
 	"time"
 
 	"github.com/jlaffaye/ftp"
+	"go.uber.org/zap"
 )
 
 type FTPClient struct {
-	conn *ftp.ServerConn
+	conn   *ftp.ServerConn
+	logger *zap.Logger
 }
 
-func NewFTPClient(host, user, pass string) (FtpClientInterface, error) {
-	log.Printf("ftpclient: Подключение к FTP ip: %s user: %s...", host, user)
-	log.Println("ftpclient: Подключение к FTP...")
+func NewFTPClient(host, user, pass string, logger *zap.Logger) (FtpClientInterface, error) {
+	logger.Info("FTPClient: Подключение к FTP",
+		zap.String("host", host),
+		zap.String("user", user))
 	conn, err := ftp.Dial(host, ftp.DialWithTimeout(5*time.Second))
 	if err != nil {
-		log.Println("ftpclient: Не удалось подключиться к FTP:", err)
+		logger.Error("FTPClient: Не удалось подключиться к FTP", zap.Error(err))
 		return nil, fmt.Errorf("не удалось подключиться к FTP: %w", err)
 	}
 
 	err = conn.Login(user, pass)
 	if err != nil {
-		log.Println("ftpclient: Не удалось войти:", err)
+		logger.Error("FTPClient: Не удалось войти", zap.Error(err))
 		return nil, fmt.Errorf("не удалось войти: %w", err)
 	}
 
-	log.Println("ftpclient: Подключение к FTP успешно")
-	return &FTPClient{conn: conn}, nil
+	logger.Info("FTPClient: Подключение успешно")
+	return &FTPClient{conn: conn, logger: logger}, nil
 }
 
 func (c *FTPClient) ListDirectory(path string) ([]string, []string, error) {
-	log.Printf("ftpclient: Просмотр содержимого директории %s...", path)
+	c.logger.Info("FTPClient: Листинг директории", zap.String("path", path))
 	entries, err := c.conn.List(path)
 	if err != nil {
-		log.Printf("ftpclient: Ошибка при просмотре содержимого директории %s: %v", path, err)
+		c.logger.Error("FTPClient: Ошибка при листинге директории", zap.String("path", path), zap.Error(err))
 		return nil, nil, err
 	}
 
@@ -54,14 +58,17 @@ func (c *FTPClient) ListDirectory(path string) ([]string, []string, error) {
 			files = append(files, fullPath)
 		}
 	}
-	log.Printf("ftpclient: Просмотр содержимого директории %s завершен", path)
-	log.Printf("ftpclient: Найдено %d поддиректорий и %d файлов", len(directories), len(files))
+	c.logger.Info("FTPClient: Листинг завершен",
+		zap.String("path", path),
+		zap.Int("directories", len(directories)),
+		zap.Int("files", len(files)))
 	return directories, files, nil
 }
 
 // Метод скачивания файла
 func (c *FTPClient) DownloadFile(remotePath, localDir string) error {
-	log.Printf("ftpclient: Скачивание файла %s...", remotePath)
+	c.logger.Info("FTPClient: Скачивание файла", zap.String("remotePath", remotePath))
+	startTime := time.Now()
 	// Выполняем команду RETR для скачивания файла
 	resp, err := c.conn.Retr(remotePath)
 	if err != nil {
@@ -69,34 +76,39 @@ func (c *FTPClient) DownloadFile(remotePath, localDir string) error {
 		return fmt.Errorf(" Ошибка при скачивании %s: %w", remotePath, err)
 	}
 	defer resp.Close()
+	filescannerservice.DownloadDuration.Observe(time.Since(startTime).Seconds())
+	filescannerservice.DownloadedFiles.Inc()
 
+	c.logger.Info("FTPClient: Файл скачан", zap.String("remotePath", remotePath))
+	startTime = time.Now()
 	// Определяем локальный путь для сохранения файла
 	localPath := filepath.Join(localDir, filepath.Base(remotePath))
 	outFile, err := os.Create(localPath)
 	if err != nil {
-		log.Printf("ftpclient: Ошибка при создании файла %s: %v", localPath, err)
+		c.logger.Error("FTPClient: Ошибка создания файла", zap.String("localPath", localPath), zap.Error(err))
 		return fmt.Errorf(" Ошибка при создании файла %s: %w", localPath, err)
 	}
 	defer outFile.Close()
 
-	log.Printf("ftpclient: Копирование данных в %s...", localPath)
 	// Копируем данные из FTP в локальный файл
 	_, err = io.Copy(outFile, resp)
 	if err != nil {
-		log.Printf("ftpclient: Ошибка копирования данных в %s: %v", localPath, err)
+		c.logger.Error("FTPClient: Ошибка копирования данных", zap.String("localPath", localPath), zap.Error(err))
 		return fmt.Errorf(" Ошибка копирования данных в %s: %w", localPath, err)
 	}
+	filescannerservice.SavingDuration.Observe(time.Since(startTime).Seconds())
+	filescannerservice.SavedFilesCounter.Inc()
 
-	log.Println("ftpclient: Файл скачан и сохранен в:", localPath)
+	c.logger.Info("FTPClient: Файл успешно скачан и сохранён", zap.String("localPath", localPath))
 	return nil
 }
 
 func (c *FTPClient) Close() {
-	log.Println("ftpclient: Закрытие соединения с FTP...")
+	c.logger.Info("FTPClient: Закрытие соединения с FTP")
 	c.conn.Quit()
 }
 
 func (c *FTPClient) CheckConnection() error {
-    // Простая команда для проверки соединения
-    return c.conn.NoOp()
+	// Простая команда для проверки соединения
+	return c.conn.NoOp()
 }

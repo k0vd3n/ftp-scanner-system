@@ -27,6 +27,11 @@ file_scanner_service:
   kafka_completed_files_count_producer:
     broker: "localhost:9092"
     completed_files_count_topic: "completed-files-count"
+  metrics:
+    instance: "instance"
+    prom_http_port: ":2112"
+  max_retries: 5
+  timeout_seconds: 120
 
 directory_lister_service:
   kafka:
@@ -38,9 +43,20 @@ directory_lister_service:
     files_to_scan_topic: "files-to-scan"
     scan_files_count_topic: "scan-files-count"
     completed_directories_count_topic: "completed-directories-count"
+    max_retries: 5
+    timeout_seconds: 60
   metrics:
-    instance: "instance1"
+    instance: "instance"
     prom_http_port: ":2112"
+  # jaeger:
+  #   service_name: "directory_lister_service"
+  #   agent_host: "localhost"
+  #   agent_port: "6831"
+  #   sampler:
+  #     type: const
+  #     param: 1
+  #   reporter:
+  #     log_spans: true
 
 main_service:
   kafka:
@@ -53,6 +69,9 @@ main_service:
     status_server_port: ":50053"
   http:
     port: ":8080"
+  metrics:
+    instance: "instance"
+    prom_http_port: ":2112"
 
 counter_reducer_service:
   kafka:
@@ -60,12 +79,15 @@ counter_reducer_service:
       - "localhost:9092"
     counter_reducer_topic: "scan-directories-count"
     counter_reducer_group: "scan-directories-count-counter-reducer-group"
-    batch_size: 100000
-    duration: 60
+    batch_size: 1000
+    duration: 15
   mongo:
     mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
     mongo_db: "testdb"
     mongo_collection: "scan_directories_count"
+  metrics:
+    instance: "instance"
+    prom_http_port: ":2112"
 
 scan_result_reducer_service:
   kafka:
@@ -73,12 +95,15 @@ scan_result_reducer_service:
       - "localhost:9092"
     consumer_topic: "scan-results"
     consumer_group: "scan-results-reducer-consumer-group"
-    batch_size: 100000
-    duration: 60
+    batch_size: 1000
+    duration: 15
   mongo:
     mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
     mongo_db: "testdb"
     mongo_collection: "scan_reports"
+  metrics:
+    instance: "instance"
+    prom_http_port: ":2112"
 
 report_service:
   mongo: 
@@ -89,6 +114,9 @@ report_service:
     server_port: ":50051"
   repository:
     directory: "/home/k0vd3n/go/src/ftp-scanner_try2/reports"
+  metrics:
+    instance: "instance"
+    prom_http_port: ":2112"
 
 status_service: 
   mongo:
@@ -100,9 +128,13 @@ status_service:
     completed_files_count_collection: "completed_files_count"
   grpc:
     port: ":50053"
+  metrics:
+    instance: "instance"
+    prom_http_port: ":2112"
 
 push_gateway:
   url: "http://localhost:9091"
   job_name: "main-service"
   instance: "scan_result_reducer-service"
   push_interval: 20
+

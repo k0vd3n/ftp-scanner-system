@@ -9,6 +9,8 @@ import (
 	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/models"
 	"log"
+
+	"go.uber.org/zap"
 )
 
 type KafkaHandlerInterface interface {
@@ -18,12 +20,17 @@ type KafkaHandlerInterface interface {
 type KafkaHandler struct {
 	service  service.FileScannerService
 	consumer kafka.KafkaFileConsumerInterface
+	logger   *zap.Logger
 }
 
-func NewKafkaHandler(service service.FileScannerService, consumer kafka.KafkaFileConsumerInterface) KafkaHandlerInterface {
+func NewKafkaHandler(service service.FileScannerService,
+	consumer kafka.KafkaFileConsumerInterface,
+	logger *zap.Logger,
+) KafkaHandlerInterface {
 	return &KafkaHandler{
 		service:  service,
 		consumer: consumer,
+		logger:   logger,
 	}
 }
 
@@ -45,11 +52,14 @@ func (h *KafkaHandler) Start(ctx context.Context) {
 			log.Println("file-scanner kafka-handler Start: Остановка обработки сообщений")
 			return
 		default:
+			counterOfAllMessages := 1
 			scanMsg, err := h.consumer.ReadMessage(ctx)
 			if err != nil {
 				log.Println("file-scanner kafka-handler Start: Ошибка чтения сообщения:", err)
 				continue
 			}
+
+			filescannerservice.ReceivedMessages.Inc()
 
 			// Проверяем необходимость нового подключения
 			needNewConnection := currentFTPClient == nil ||
@@ -64,6 +74,7 @@ func (h *KafkaHandler) Start(ctx context.Context) {
 					fmt.Sprintf("%s:%d", scanMsg.FTPConnection.Server, scanMsg.FTPConnection.Port),
 					scanMsg.FTPConnection.Username,
 					scanMsg.FTPConnection.Password,
+					h.logger,
 				)
 
 				if err != nil {
@@ -85,6 +96,7 @@ func (h *KafkaHandler) Start(ctx context.Context) {
 					fmt.Sprintf("%s:%d", scanMsg.FTPConnection.Server, scanMsg.FTPConnection.Port),
 					scanMsg.FTPConnection.Username,
 					scanMsg.FTPConnection.Password,
+					h.logger,
 				)
 
 				if err != nil {
@@ -99,12 +111,13 @@ func (h *KafkaHandler) Start(ctx context.Context) {
 			}
 
 			// Обработка файла
-			if err := h.service.ProcessFile(scanMsg, currentFTPClient); err != nil {
+			if err := h.service.ProcessFile(scanMsg, currentFTPClient, counterOfAllMessages); err != nil {
+				counterOfAllMessages++
 				log.Println("file-scanner kafka-handler Start: Ошибка обработки файла:", err)
 				// Сбрасываем соединение при ошибке
-				currentFTPClient.Close()
-				currentFTPClient = nil
-				currentParams = nil
+				// currentFTPClient.Close()
+				// currentFTPClient = nil
+				// currentParams = nil
 			}
 		}
 	}

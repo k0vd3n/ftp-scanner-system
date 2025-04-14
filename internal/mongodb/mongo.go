@@ -6,7 +6,6 @@ import (
 	"ftp-scanner_try2/internal/models"
 	"log"
 
-	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -67,11 +66,6 @@ func NewMongoCounterRepository(client *mongo.Client, database string) GetCounter
 // Метод получения счетчиков
 func (r *mongoCounterRepository) GetCountersByScanID(ctx context.Context, scanID string, config config.StatusServiceMongo) (*models.StatusResponseGRPC, error) {
 	log.Printf("MongoDB: Получение счетчиков для ID скана: %s\n", scanID)
-	err := godotenv.Load()
-	if err != nil {
-		log.Printf("MongoDB: Ошибка при загрузке переменных окружения: %v\n", err)
-		log.Fatalf("Error loading .env file: %v", err)
-	}
 
 	counters := &models.StatusResponseGRPC{ScanID: scanID}
 

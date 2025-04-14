@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +13,7 @@ import (
 	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/mongodb"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -25,8 +27,14 @@ func main() {
 		log.Fatalf("counter-reducer-service main: Ошибка загрузки конфига: %v", err)
 	}
 
-	counterreducerservice.InitMetrics()
-	counterreducerservice.StartPushLoop(&cfg.PushGateway)
+	counterreducerservice.InitMetrics(cfg.CounterReducer.Metrics.InstanceLabel)
+	go func() {
+		log.Printf("Запуск HTTP-сервера для метрик на порту %s", cfg.CounterReducer.Metrics.PromHttpPort)
+		http.Handle("/metrics", promhttp.Handler())
+		if err := http.ListenAndServe(cfg.CounterReducer.Metrics.PromHttpPort, nil); err != nil {
+			log.Fatalf("Ошибка HTTP-сервера для метрик: %v", err)
+		}
+	}()
 
 	// Инициализация MongoDB
 	log.Println("counter-reducer-service main: Инициализация соединения с MongoDB...")

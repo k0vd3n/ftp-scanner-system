@@ -1,0 +1,43 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda-console
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda-console
+  template:
+    metadata:
+      labels:
+        app: redpanda-console
+    spec:
+      containers:
+      - name: redpanda-console
+        image: redpandadata/console:latest
+        env:
+        # Указываем адреса брокеров Kafka
+        - name: KAFKA_BROKERS
+          value: "kafka-0.kafka-headless.staging.svc.cluster.local:9092,kafka-1.kafka-headless.staging.svc.cluster.local:9092,kafka-2.kafka-headless.staging.svc.cluster.local:9092"
+        # Порт, на котором Redpanda Console будет слушать HTTP-запросы
+        - name: REDPANDA_CONSOLE_PORT
+          value: "8080"
+        ports:
+        - containerPort: 8080
+          name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda-console
+  namespace: staging
+spec:
+  selector:
+    app: redpanda-console
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP

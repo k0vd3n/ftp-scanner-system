@@ -3,31 +3,35 @@ package kafka
 import (
 	"context"
 	"encoding/json"
-	"log"
 
 	"github.com/segmentio/kafka-go"
+	"go.uber.org/zap"
 )
 
 type Producer struct {
 	writer *kafka.Writer
+	logger *zap.Logger
 }
 
-func NewProducer(broker string) (KafkaPoducerInterface, error) {
+func NewProducer(broker string, logger *zap.Logger) (KafkaPoducerInterface, error) {
 	writer := &kafka.Writer{
-		Addr:  kafka.TCP(broker),
+		Addr: kafka.TCP(broker),
 		// Topic: topic, // Топик по умолчанию
-		Balancer: &kafka.LeastBytes{},
-		BatchSize: 100,
+		Balancer:     &kafka.LeastBytes{},
+		BatchSize:    100,
 		BatchTimeout: 10,
+		RequiredAcks: kafka.RequireOne,
 	}
 
 	return &Producer{
 		writer: writer,
+		logger: logger,
 	}, nil
 }
 
 func (p *Producer) SendMessage(topic string, message interface{}) error {
-	log.Printf("Producer: Отправка сообщения в Kafka...")
+	p.logger.Info("Producer: Отправка сообщения в Kafka",
+		zap.String("topic", topic))
 	// Сериализация сообщения в JSON
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
@@ -40,15 +44,18 @@ func (p *Producer) SendMessage(topic string, message interface{}) error {
 		Value: msgBytes,
 	})
 	if err != nil {
-		log.Printf("Producer: Ошибка при отправке сообщения в Kafka: %v", err)
+		p.logger.Error("Producer: Ошибка отправки сообщения", zap.Error(err))
+
 		return err
 	}
 
-	log.Printf("Producer: Сообщение отправлено в топик %s: %v", topic, message)
+	p.logger.Info("Producer: Сообщение отправлено в Kafka",
+		zap.String("topic", topic),
+		zap.Any("message", message))
 	return nil
 }
 
 func (p *Producer) CloseWriter() error {
-	log.Println("Producer: Закрытие Kafka-продусера...")
+	p.logger.Info("Producer: Закрытие Kafka-продюсера")
 	return p.writer.Close()
 }

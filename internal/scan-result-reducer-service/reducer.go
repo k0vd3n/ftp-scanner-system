@@ -35,6 +35,10 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 	start := time.Now()
 	scanMap := make(map[string]*models.ScanReport)
 
+	log.Printf("scan-result-reducer-service reduce-scan-results: Начало подсчета общего числа полученных отчетов для редьюса...")
+	// Счётчики для директорий и файлов
+	var totalDirs, totalFiles int
+
 	log.Printf("scan-result-reducer-service reduce-scan-results: Количество сообщений: %d", len(messages))
 	for _, msg := range messages {
 		// Проверяем, существует ли отчет для данного scan_id
@@ -59,7 +63,7 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 			}
 		}
 
-		// Если директории нет, создаем ее с абсолютным путем
+		// Если директории нет, создаем ее с абсолютным путем и увеличиваем счетчик директорий
 		if currentDir == nil {
 			newDir := models.Directory{
 				Directory:    fullPath,
@@ -68,6 +72,7 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 			}
 			currentReport.Directories = append(currentReport.Directories, newDir)
 			currentDir = &currentReport.Directories[len(currentReport.Directories)-1]
+			totalDirs++ // учет новой корневой директории
 		}
 
 		// Обрабатываем поддиректории, создавая полные пути,
@@ -91,6 +96,7 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 				}
 				currentDir.Subdirectory = append(currentDir.Subdirectory, newDir)
 				currentDir = &currentDir.Subdirectory[len(currentDir.Subdirectory)-1]
+				totalDirs++ // учет новой директории
 			}
 		}
 
@@ -117,8 +123,12 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 				},
 			}
 			currentDir.Files = append(currentDir.Files, newFile)
+			totalFiles++ // учет нового файла
 		}
 	}
+
+	ReceivedDirectories.Add(float64(totalDirs))
+	ReceivedFiles.Add(float64(totalFiles))
 
 	// Преобразуем map в слайс для JSON-ответа
 	var groupedResults []models.ScanReport

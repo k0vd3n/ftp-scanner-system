@@ -5,10 +5,12 @@ import (
 	"ftp-scanner_try2/api/grpc/proto"
 	"ftp-scanner_try2/config"
 	"ftp-scanner_try2/internal/mongodb"
-	reportservice "ftp-scanner_try2/internal/scan-reports-service"
+	reportservice "ftp-scanner_try2/internal/report-service"
 	"log"
 	"net"
+	"net/http"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
@@ -24,8 +26,14 @@ func main() {
 		log.Fatalf("counter-reducer-service main: Ошибка загрузки конфига: %v", err)
 	}
 
-	reportservice.InitMetrics()
-	reportservice.StartPushLoop(&cfg.PushGateway)
+	reportservice.InitMetrics(cfg.ReportService.Metrics.InstanceLabel)
+	go func() {
+		log.Printf("Запуск HTTP-сервера для метрик на порту %s", cfg.ReportService.Metrics.PromHttpPort)
+		http.Handle("/metrics", promhttp.Handler())
+		if err := http.ListenAndServe(cfg.ReportService.Metrics.PromHttpPort, nil); err != nil {
+			log.Fatalf("Ошибка HTTP-сервера для метрик: %v", err)
+		}
+	}()
 
 	log.Printf("Report Service: main: Инициализация соединения с MongoDB...")
 	log.Printf("Report Service: main: MongoDB URI: %s", cfg.ReportService.Mongo.MongoUri)

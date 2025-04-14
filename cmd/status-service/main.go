@@ -8,7 +8,9 @@ import (
 	statusservice "ftp-scanner_try2/internal/status-service"
 	"log"
 	"net"
+	"net/http"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
@@ -24,8 +26,14 @@ func main() {
 		log.Fatalf("Counter Service: main: Ошибка загрузки конфига: %v", err)
 	}
 
-	statusservice.InitMetrics()
-	statusservice.StartPushLoop(&cfg.PushGateway)
+	statusservice.InitMetrics(cfg.StatusService.Metrics.InstanceLabel)
+	go func() {
+		log.Printf("Запуск HTTP-сервера для метрик на порту %s", cfg.StatusService.Metrics.PromHttpPort)
+		http.Handle("/metrics", promhttp.Handler())
+		if err := http.ListenAndServe(cfg.StatusService.Metrics.PromHttpPort, nil); err != nil {
+			log.Fatalf("Ошибка HTTP-сервера для метрик: %v", err)
+		}
+	}()
 
 	log.Printf("Counter Service: main: mongoUri: %s", cfg.StatusService.Mongo.MongoUri)
 

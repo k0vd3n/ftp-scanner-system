@@ -28,12 +28,21 @@ type UnifiedConfig struct {
 	ReportService     ReportServiceConfig     `yaml:"report_service"`
 	StatusService     StatusServiceConfig     `yaml:"status_service"`
 	PushGateway       PushGatewayConfig       `yaml:"push_gateway"`
+	// Jaeger            JaegerConfig            `yaml:"jaeger"`
 }
 
 type FileScannerConfig struct {
 	KafkaConsumer                    FileScannerConsumer                    `yaml:"kafka_consumer"`
 	KafkaScanResultProducer          FileScannerProducerScanResults         `yaml:"kafka_scan_result_producer"`
 	KafkaCompletedFilesCountProducer FileScannerProducerCompletedFilesCount `yaml:"kafka_completed_files_count_producer"`
+	Metrics                          FileScannerMetrics                     `yaml:"metrics"`
+	MaxRetries                       int                                    `yaml:"max_retries"`
+	TimeoutSeconds                   int                                    `yaml:"timeout_seconds"`
+}
+
+type FileScannerMetrics struct {
+	PromHttpPort  string `yaml:"prom_http_port"`
+	InstanceLabel string `yaml:"instance"`
 }
 
 type FileScannerConsumer struct {
@@ -69,6 +78,7 @@ type RoutingConfig struct {
 type DirectoryListerConfig struct {
 	Kafka   DirectoryListerKafkaConfig `yaml:"kafka"`
 	Metrics DirectoryListerPrometheus  `yaml:"metrics"`
+	// Jaeger  JaegerConfig               `yaml:"jaeger"`
 }
 
 type DirectoryListerKafkaConfig struct {
@@ -80,6 +90,8 @@ type DirectoryListerKafkaConfig struct {
 	FilesToScanTopic               string `yaml:"files_to_scan_topic"`
 	ScanFilesCountTopic            string `yaml:"scan_files_count_topic"`
 	CompletedDirectoriesCountTopic string `yaml:"completed_directories_count_topic"`
+	MaxRetries                     int    `yaml:"max_retries"`
+	TimeoutSeconds                 int    `yaml:"timeout_seconds"`
 }
 
 type DirectoryListerPrometheus struct {
@@ -88,9 +100,15 @@ type DirectoryListerPrometheus struct {
 }
 
 type MainServiceConfig struct {
-	Kafka MainServiceKafka `yaml:"kafka"`
-	GRPC  MainServiceGrpc  `yaml:"grpc"`
-	HTTP  MainServiceHttp  `yaml:"http"`
+	Kafka   MainServiceKafka   `yaml:"kafka"`
+	GRPC    MainServiceGrpc    `yaml:"grpc"`
+	HTTP    MainServiceHttp    `yaml:"http"`
+	Metrics MainServiceMetrics `yaml:"metrics"`
+}
+
+type MainServiceMetrics struct {
+	PromHttpPort  string `yaml:"prom_http_port"`
+	InstanceLabel string `yaml:"instance"`
 }
 
 type MainServiceKafka struct {
@@ -110,9 +128,16 @@ type MainServiceHttp struct {
 }
 
 type CounterReducerConfig struct {
-	Kafka CounterReducerKafka `yaml:"kafka"`
-	Mongo CounterReducerMongo `yaml:"mongo"`
+	Kafka   CounterReducerKafka   `yaml:"kafka"`
+	Mongo   CounterReducerMongo   `yaml:"mongo"`
+	Metrics CounterReducerMetrics `yaml:"metrics"`
 }
+
+type CounterReducerMetrics struct {
+	PromHttpPort  string `yaml:"prom_http_port"`
+	InstanceLabel string `yaml:"instance"`
+}
+
 type CounterReducerKafka struct {
 	Brokers             []string `yaml:"brokers"`
 	CounterReducerTopic string   `yaml:"counter_reducer_topic"`
@@ -128,8 +153,14 @@ type CounterReducerMongo struct {
 }
 
 type ScanResultReducerConfig struct {
-	Kafka ScanResultReducerKafka `yaml:"kafka"`
-	Mongo ScanResultReducerMongo `yaml:"mongo"`
+	Kafka   ScanResultReducerKafka   `yaml:"kafka"`
+	Mongo   ScanResultReducerMongo   `yaml:"mongo"`
+	Metrics ScanResultReducerMetrics `yaml:"metrics"`
+}
+
+type ScanResultReducerMetrics struct {
+	PromHttpPort  string `yaml:"prom_http_port"`
+	InstanceLabel string `yaml:"instance"`
 }
 
 type ScanResultReducerKafka struct {
@@ -150,6 +181,12 @@ type ReportServiceConfig struct {
 	Mongo      ReportServiceMongo      `yaml:"mongo"`
 	Grpc       ReportServiceGrpc       `yaml:"grpc"`
 	Repository ReportServiceRepository `yaml:"repository"`
+	Metrics    ReportServiceMetrics    `yaml:"metrics"`
+}
+
+type ReportServiceMetrics struct {
+	PromHttpPort  string `yaml:"prom_http_port"`
+	InstanceLabel string `yaml:"instance"`
 }
 
 type ReportServiceMongo struct {
@@ -167,8 +204,14 @@ type ReportServiceRepository struct {
 }
 
 type StatusServiceConfig struct {
-	Mongo StatusServiceMongo `yaml:"mongo"`
-	Grpc  StatusServiceGrpc  `yaml:"grpc"`
+	Mongo   StatusServiceMongo   `yaml:"mongo"`
+	Grpc    StatusServiceGrpc    `yaml:"grpc"`
+	Metrics StatusServiceMetrics `yaml:"metrics"`
+}
+
+type StatusServiceMetrics struct {
+	PromHttpPort  string `yaml:"prom_http_port"`
+	InstanceLabel string `yaml:"instance"`
 }
 
 type StatusServiceMongo struct {
@@ -189,4 +232,21 @@ type PushGatewayConfig struct {
 	JobName      string `yaml:"job_name"`
 	Instance     string `yaml:"instance"`
 	PushInterval int    `yaml:"push_interval"`
+}
+
+// type JaegerConfig struct {
+// 	ServiceName string         `yaml:"service_name"`
+// 	AgentHost   string         `yaml:"agent_host"`
+// 	AgentPort   string         `yaml:"agent_port"`
+// 	Sampler     JaegerSampler  `yaml:"sampler"`
+// 	Reporter    JaegerReporter `yaml:"reporter"`
+// }
+
+type JaegerSampler struct {
+	Type  string  `yaml:"type"`
+	Param float64 `yaml:"param"`
+}
+
+type JaegerReporter struct {
+	LogSpans bool `yaml:"log_spans"`
 }

@@ -28,9 +28,9 @@ func (s *GRPCCounterService) GetScanStatus(ctx context.Context, scanID string) (
 	log.Printf("Main-service: counter-client: getScanStatus: Счетчики получены для scan_id=%s: %+v", scanID, counters)
 
 	directoriesFound := int(counters.GetDirectoriesCount())
-	filesScanned := int(counters.GetFilesCount())
+	filesScanned := int(counters.GetCompletedFiles())
 	directoriesScanned := int(counters.GetCompletedDirectories())
-	filesFound := int(counters.GetCompletedFiles())
+	filesFound := int(counters.GetFilesCount())
 	log.Printf("Main-service: counter-client: getScanStatus: directoriesScanned=%d", directoriesScanned)
 	log.Printf("Main-service: counter-client: getScanStatus: filesScanned=%d", filesScanned)
 	log.Printf("Main-service: counter-client: getScanStatus: directoriesFound=%d", directoriesFound)

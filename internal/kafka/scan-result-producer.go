@@ -33,7 +33,7 @@ func NewScanResultProducer(
 	}
 
 	return &KafkaScanResultProducer{
-		writer: writer,
+		writer:       writer,
 		routingRules: routing,
 	}, nil
 }

@@ -11,7 +11,7 @@ import (
 )
 
 type CounterReducerService interface {
-	ReduceMessages(messages []models.CountMessage) []models.CountMessage
+	ReduceMessages(messages []models.CountMessage) (reducedMessage []models.CountMessage, totalNumber int)
 	InsertReducedCounters(ctx context.Context, counts []models.CountMessage) error
 	Start(ctx context.Context)
 }
@@ -34,12 +34,14 @@ func NewCounterReducerService(
 	}
 }
 
-func (c *CounterReducer) ReduceMessages(messages []models.CountMessage) []models.CountMessage {
+func (c *CounterReducer) ReduceMessages(messages []models.CountMessage) (reducedMessage []models.CountMessage, totalNumber int) {
 	log.Println("counter-reducer-service reduce-messages: Начало редьюса сообщений...")
 	reduced := make(map[string]int)
+	totalNumber = 0
 
 	log.Printf("counter-reducer-service reduce-messages: Количество сообщений: %d", len(messages))
 	for _, msg := range messages {
+		totalNumber += msg.Number
 		reduced[msg.ScanID] += msg.Number
 	}
 	log.Printf("counter-reducer-service reduce-messages: Количество уникальных сканов: %d", len(reduced))
@@ -54,7 +56,7 @@ func (c *CounterReducer) ReduceMessages(messages []models.CountMessage) []models
 	}
 	log.Printf("counter-reducer-service reduce-messages: Результат редьюсирования: %v", result)
 
-	return result
+	return result, totalNumber
 }
 
 func (c *CounterReducer) InsertReducedCounters(ctx context.Context, counts []models.CountMessage) error {
@@ -69,21 +71,28 @@ func (c *CounterReducer) Start(ctx context.Context) {
 			c.cfg.CounterReducer.Kafka.BatchSize,
 			time.Duration(c.cfg.CounterReducer.Kafka.Duration)*time.Second,
 		)
+
 		if err != nil {
 			log.Printf("counter-reducer-service main: Ошибка чтения сообщений: %v", err)
 			continue
 		}
 		log.Printf("counter-reducer-service main: Получено %d сообщений", len(messages))
 		if len(messages) != 0 {
+
 			ReceivedMessages.Add(float64(len(messages)))
+			
 			startTime := time.Now()
 			startReduce := time.Now()
+			
 			log.Println("counter-reducer-service main: Редьюс сообщений...")
-			reduced := c.ReduceMessages(messages)
+			reduced, totalNumber := c.ReduceMessages(messages)
 			timeReduce := time.Since(startReduce).Seconds()
 			ProcessingReduce.Observe(timeReduce)
+			ReceivedNumbers.Add(float64(totalNumber))
+			
 			log.Println("counter-reducer-service main: Вставка редьюсированных данных в MongoDB...")
 			ReducedMessages.Add(float64(len(reduced)))
+			
 			startInsert := time.Now()
 			if err := c.repo.InsertReducedCounters(ctx, reduced); err != nil {
 				log.Printf("counter-reducer-service main: Ошибка вставки данных в MongoDB: %v", err)

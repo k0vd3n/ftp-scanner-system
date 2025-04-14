@@ -1,0 +1,459 @@
+
+# # ---
+# # apiVersion: apps/v1
+# # kind: Deployment
+# # metadata:
+# #   namespace: staging
+# #   name: zookeeper
+# # spec:
+# #   replicas: 1
+# #   selector:
+# #     matchLabels:
+# #       app: zookeeper
+# #   template:
+# #     metadata:
+# #       namespace: staging
+# #       labels:
+# #         app: zookeeper
+# #     spec:
+# #       containers:
+# #       - name: zookeeper
+# #         image: confluentinc/cp-zookeeper:latest
+# #         ports:
+# #         - containerPort: 2181
+# #         env:
+# #         - name: ZOOKEEPER_CLIENT_PORT
+# #           value: "2181"
+# # ---
+# # apiVersion: v1
+# # kind: Service
+# # metadata:
+# #   namespace: staging
+# #   name: zookeeper
+# # spec:
+# #   ports:
+# #   - port: 2181
+# #     targetPort: 2181
+# #   selector:
+# #     app: zookeeper
+# # ---
+# # apiVersion: apps/v1
+# # kind: StatefulSet
+# # metadata:
+# #   namespace: staging
+# #   name: kafka
+# # spec:
+# #   replicas: 3
+# #   selector:
+# #     matchLabels:
+# #       app: kafka
+# #   template:
+# #     metadata:
+# #       namespace: staging
+# #       labels:
+# #         app: kafka
+# #     spec:
+# #       containers:
+# #       - name: kafka
+# #         image: confluentinc/cp-kafka:latest
+# #         ports:
+# #         - containerPort: 9092
+# #         env:
+# #         - name: KAFKA_SOCKET_SEND_BUFFER_BYTES
+# #           value: "1048576"
+# #         - name: KAFKA_SOCKET_RECEIVE_BUFFER_BYTES
+# #           value: "1048576"
+# #         - name: KAFKA_ZOOKEEPER_CONNECT
+# #           value: "zookeeper:2181"
+# #         - name: KAFKA_ADVERTISED_LISTENERS
+# #           value: "PLAINTEXT://$(HOSTNAME).kafka-broker:9092"  # изменили на DNS-имя сервиса
+# #         - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP // 
+# #           value: "PLAINTEXT:PLAINTEXT" // 
+# #         - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+# #           value: "3" // 1
+# #         volumeMounts:
+# #         - name: kafka-data
+# #           mountPath: /kafka
+# #     v
+#       # volumes:
+#       # - name: kafka-data
+#       #   persistentVolumeClaim:
+#       #     claimName: kafka-pvc
+# # ---
+# # apiVersion: v1
+# # kind: Service
+# # metadata:
+# #   namespace: staging
+# #   name: kafka-broker   # сервис переименован
+# # spec:
+# #   clusterIP: None
+# #   ports:
+# #   - port: 9092
+# #     targetPort: 9092
+# #   selector:
+# #     app: kafka
+# # ---
+# # apiVersion: v1
+# # kind: PersistentVolumeClaim
+# # metadata:
+# #   namespace: staging
+# #   name: kafka-pvc
+# # spec:
+# #   accessModes:
+# #   - ReadWriteOnce
+# #   resources:
+# #     requests:
+# #       storage: 5Gi
+# # ---
+# # apiVersion: v1
+# # kind: ConfigMap
+# # metadata:
+# #   namespace: staging
+# #   name: kafka-setup-script
+# # data:
+# #   kafka-setup.sh: |
+# #     #!/bin/bash
+# #     set -e
+# #     # ожидание старта Kafka; при необходимости увеличьте задержку
+# #     sleep 10
+# #     kafka-topics --create --topic directories-to-scan --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic files-to-scan --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic scan-results --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic scan-results-2 --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic aggregated-results --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic empty-result-topic --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic small-result-topic --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic medium-result-topic --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic large-result-topic --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic scan-directories-count --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic scan-files-count --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic completed-directories-count --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# #     kafka-topics --create --topic completed-files-count --bootstrap-server kafka-broker:9092 --partitions 600 --replication-factor 1
+# # ---
+# # apiVersion: batch/v1
+# # kind: Job
+# # metadata:
+# #   namespace: staging
+# #   name: kafka-setup
+# # spec:
+# #   template:
+# #     spec:
+# #       restartPolicy: OnFailure
+# #       containers:
+# #       - name: kafka-setup
+# #         image: confluentinc/cp-kafka:latest
+# #         command: ["/bin/bash", "/scripts/kafka-setup.sh"]
+# #         volumeMounts:
+# #         - name: setup-script
+# #           mountPath: /scripts
+# #       volumes:
+# #       - name: setup-script
+# #         configMap:
+# #           name: kafka-setup-script
+# #           defaultMode: 0777
+# # ---
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kafka
+  namespace: staging
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kafka
+  name: kafka-headless
+  namespace: staging
+spec:
+  clusterIP: None
+  clusterIPs:
+  - None
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: tcp-kafka-int
+    port: 9092
+    protocol: TCP
+    targetPort: tcp-kafka-int
+  - name: tcp-kafka-ctrl
+    port: 29093
+    protocol: TCP
+    targetPort: tcp-kafka-ctrl
+  selector:
+    app: kafka
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: kafka
+  name: kafka
+  namespace: staging
+spec:
+  podManagementPolicy: Parallel
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: kafka
+  serviceName: kafka-headless
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      serviceAccountName: kafka
+      containers:
+      - command:
+        - sh
+        - -exc
+        - |
+          export CLUSTER_ID="6PMpHYL9QkeyXRj9Nrp4KA" && \
+          export KAFKA_NODE_ID=${HOSTNAME##*-} 
+          export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_NAME}.kafka-headless.staging.svc.cluster.local:9092
+          export KAFKA_CONTROLLER_QUORUM_VOTERS="0@kafka-0.kafka-headless.staging.svc.cluster.local:29093,1@kafka-1.kafka-headless.staging.svc.cluster.local:29093,2@kafka-2.kafka-headless.staging.svc.cluster.local:29093" 
+
+          exec /etc/confluent/docker/run
+        env:
+        - name: KAFKA_CONTROLLER_LISTENER_NAMES
+          value: "CONTROLLER"
+        - name: KAFKA_LISTENERS
+          value: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        name: kafka
+        image: docker.io/confluentinc/confluent-local:7.5.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9092
+          name: tcp-kafka-int
+          protocol: TCP
+        - containerPort: 29093
+          name: tcp-kafka-ctrl
+          protocol: TCP
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1400Mi
+          requests:
+            cpu: 250m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          # readOnlyRootFilesystem: true
+          runAsGroup: 1000
+          runAsUser: 1000
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /etc/kafka
+          name: config
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1000
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: config
+  updateStrategy:
+    type: RollingUpdate
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: staging
+  name: grafana-datasources
+data:
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+      - name: prometheus-operated
+        type: prometheus
+        access: proxy
+        url: http://prometheus-operated.monitoring:9090
+        isDefault: true
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  namespace: staging
+  name: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      namespace: staging
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin"
+        volumeMounts:
+        - name: grafana-datasources
+          mountPath: /etc/grafana/provisioning/datasources
+      volumes:
+      - name: grafana-datasources
+        configMap:
+          name: grafana-datasources
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: staging
+  name: grafana
+spec:
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: grafana
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongo-init-script
+  namespace: staging
+data:
+  init-mongo.js: |
+    // Инициализация базы данных testdb и создание коллекций
+    db = new Mongo().getDB("testdb");
+    db.createCollection("scan_reports");
+    db.createCollection("scan_directories_count");
+    db.createCollection("scan_files_count");
+    db.createCollection("completed_directories_count");
+    db.createCollection("completed_files_count");
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  namespace: staging
+  name: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      namespace: staging
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:5.0
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: "testuser"
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: "testpassword"
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /data/db
+        - name: mongo-init-script
+          mountPath: /docker-entrypoint-initdb.d
+      volumes:
+      - name: mongo-data
+        persistentVolumeClaim:
+          claimName: mongo-pvc
+      - name: mongo-init-script
+        configMap:
+          name: mongo-init-script
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: staging
+  name: mongodb
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+  selector:
+    app: mongodb
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: staging
+  name: mongo-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: monitoring
+  labels:
+    app: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+      - name: jaeger
+        image: jaegertracing/all-in-one:1.29
+        ports:
+        - containerPort: 5775  # UDP, для Compact Thrift
+        - containerPort: 6831  # UDP, для Binary Thrift
+        - containerPort: 6832  # UDP
+        - containerPort: 16686 # UI (HTTP)
+        - containerPort: 14268 # Collector HTTP
+        env:
+        - name: COLLECTOR_ZIPKIN_HTTP_PORT
+          value: "9411"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: monitoring
+  labels:
+    app: jaeger
+spec:
+  selector:
+    app: jaeger
+  ports:
+  - name: query
+    port: 16686
+    targetPort: 16686
+  - name: collector
+    port: 14268
+    targetPort: 14268
+  type: ClusterIP

@@ -7,10 +7,12 @@ import (
 	"ftp-scanner_try2/internal/mongodb"
 	scanresultreducerservice "ftp-scanner_try2/internal/scan-result-reducer-service"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -25,8 +27,15 @@ func main() {
 		log.Fatalf("scan-result-reducer-service main: Ошибка загрузки конфига: %v", err)
 	}
 
-	scanresultreducerservice.InitMetrics()
-	scanresultreducerservice.StartPushLoop(&cfg.PushGateway)
+	scanresultreducerservice.InitMetrics(cfg.ScanResultReducer.Metrics.InstanceLabel)
+
+	go func() {
+		log.Printf("Запуск HTTP-сервера для метрик на порту %s", cfg.ScanResultReducer.Metrics.PromHttpPort)
+		http.Handle("/metrics", promhttp.Handler())
+		if err := http.ListenAndServe(cfg.ScanResultReducer.Metrics.PromHttpPort, nil); err != nil {
+			log.Fatalf("Ошибка HTTP-сервера для метрик: %v", err)
+		}
+	}()
 
 	log.Printf("scan-result-reducer-service main: Подключение к MongoDB")
 	log.Printf("scan-result-reducer-service main: MongoDB URI: %s", cfg.ScanResultReducer.Mongo.MongoUri)
