@@ -12,13 +12,13 @@ DOCKERHUB_USER="k0vd3n"
 
 # Список сервисов и соответствующих путей к Dockerfile относительно корня репозитория.
 declare -A services
-# services["main-service"]="dockerfiles/main-service/Dockerfile" 
-# services["report-service"]="dockerfiles/report-service/Dockerfile"
-# services["status-service"]="dockerfiles/status-service/Dockerfile"
-# services["file-scanner-service"]="dockerfiles/file-scanner-service/Dockerfile"
+services["main-service"]="dockerfiles/main-service/Dockerfile" 
+services["report-service"]="dockerfiles/report-service/Dockerfile"
+services["status-service"]="dockerfiles/status-service/Dockerfile"
+services["file-scanner-service"]="dockerfiles/file-scanner-service/Dockerfile"
 services["directory-lister-service"]="dockerfiles/directory-lister-service/Dockerfile"
-# services["counter-reducer-service"]="dockerfiles/counter-reducer-service/Dockerfile"
-# services["scan-result-reducer-service"]="dockerfiles/scan-result-reducer-service/Dockerfile"
+services["counter-reducer-service"]="dockerfiles/counter-reducer-service/Dockerfile"
+services["scan-result-reducer-service"]="dockerfiles/scan-result-reducer-service/Dockerfile"
 
 echo "Запуск параллельной сборки Docker-образов..."
 
