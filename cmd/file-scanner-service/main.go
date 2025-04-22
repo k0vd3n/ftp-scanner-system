@@ -41,14 +41,21 @@ func main() {
 	// Инициализация метрик
 	filescannerservice.InitMetrics(cfg.FileScanner.Metrics.InstanceLabel)
 	go func() {
-		zapLogger.Info("File-scanner-service: main: Запуск HTTP-сервера для метрик", 
+		zapLogger.Info("File-scanner-service: main: Запуск HTTP-сервера для метрик",
 			zap.String("port", cfg.FileScanner.Metrics.PromHttpPort))
-		
+
 		http.Handle("/metrics", promhttp.Handler())
 		if err := http.ListenAndServe(cfg.FileScanner.Metrics.PromHttpPort, nil); err != nil {
 			zapLogger.Fatal("File-scanner-service: main: Ошибка HTTP-сервера для метрик", zap.Error(err))
 		}
 	}()
+
+	// Создание пушера для всех метрик
+	pusher := filescannerservice.NewPusher(
+		cfg.FileScanner.Metrics.PushGateway.URL,
+		cfg.FileScanner.Metrics.PushGateway.JobName,
+		cfg.FileScanner.Metrics.PushGateway.Instance,
+	)
 
 	// Инициализация сканеров
 	scannerTypes := cfg.FileScanner.KafkaScanResultProducer.ScannerTypes
@@ -98,20 +105,54 @@ func main() {
 		zapLogger,
 	)
 
+
+	// 1) Контекст для внутренней отмены (panic, ошибки и т.п.)
+	internalCtx, internalCancel := context.WithCancel(context.Background())
+	defer internalCancel()
+
 	// Создание обработчика Kafka
-	kafkaHandler := handler.NewKafkaHandler(fileScannerService, consumer, zapLogger)
+	kafkaHandler := handler.NewKafkaHandler(fileScannerService, consumer, zapLogger, internalCancel)
 
 	// Настройка graceful shutdown
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	// stop := make(chan os.Signal, 1)
+	// signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	// 2) Контекст, отменяемый при OS-сигналах
+	signalCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+
+	
 
 	// Запуск обработки сообщений
-	ctx, cancel := context.WithCancel(context.Background())
+	// ctx, cancel := context.WithCancel(context.Background())
 	zapLogger.Info("file-scanner-service: main: Запуск обработки сообщений")
-	go kafkaHandler.Start(ctx)
 
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		zapLogger.Error("file-scanner-service: main: PANIC RECOVERED произошло аварийное завершение", zap.Any("panic", r))
+	// 	}
+	// 	zapLogger.Info("file-scanner-service: main: Остановка обработки сообщений")
+	// 	if err := pusher.Push(); err != nil {
+	// 		zapLogger.Error("file-scanner-service: main: Ошибка отправки метрик", zap.Error(err))
+	// 	}
+	// }()
+
+	go kafkaHandler.Start(internalCtx)
+	select {
+	case <-internalCtx.Done():
+		// внутренняя отмена: пушим метрики
+		if err := pusher.Push(); err != nil {
+			zapLogger.Error("Ошибка отправки метрик при внутренней отмене", zap.Error(err))
+		} else {
+			zapLogger.Info("Метрики успешно отправлены после внутренней отмены")
+		}
+	case <-signalCtx.Done():
+		// внешняя отмена (Ctrl+C или kill): ничего не пушим
+		zapLogger.Info("Получен сигнал ОС, завершаем без отправки метрик")
+	}
+	
 	// Ожидание сигнала завершения
-	<-stop
-	cancel()
+	// <-stop
+	// cancel()
 	zapLogger.Info("file-scanner-service: main: Сервис завершил работу")
 }

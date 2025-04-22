@@ -163,9 +163,8 @@ func (s *directoryListerService) ProcessDirectory(ctx context.Context, scanMsg *
 		}
 		return err
 	}
-
+	DirectoriesProcessed.Inc()
 	if len(dirs) != 0 {
-		DirectoriesProcessed.Add(float64(len(dirs)))
 		for _, dir := range dirs {
 			msg := models.DirectoryScanMessage{
 				ScanID:        scanMsg.ScanID,
@@ -222,7 +221,7 @@ func (s *directoryListerService) ProcessDirectory(ctx context.Context, scanMsg *
 				zap.String("directory", scanMsg.DirectoryPath),
 				zap.String("topic", s.config.DirectoriesToScanTopic),
 				zap.String("scan_id", scanMsg.ScanID))
-			KafkaMessagesSentScanDirsCount.Inc()
+			KafkaMessagesSentScanDirsCount.Add(float64(len(dirs)))
 		}
 	}
 
@@ -280,7 +279,7 @@ func (s *directoryListerService) ProcessDirectory(ctx context.Context, scanMsg *
 				zap.String("directory", scanMsg.DirectoryPath),
 				zap.String("topic", s.config.DirectoriesToScanTopic),
 				zap.String("scan_id", scanMsg.ScanID))
-			KafkaMessagesSentScanFilesCount.Inc()
+			KafkaMessagesSentScanFilesCount.Add(float64(len(files)))
 		}
 	}
 
@@ -308,7 +307,7 @@ func (s *directoryListerService) ProcessDirectory(ctx context.Context, scanMsg *
 			zap.String("directory", scanMsg.DirectoryPath),
 			zap.String("topic", s.config.DirectoriesToScanTopic),
 			zap.String("scan_id", scanMsg.ScanID))
-		KafkaMessagesSentScanFilesCount.Inc()
+		KafkaMessagesSentCompletedDirsCount.Inc()
 	}
 
 	return nil

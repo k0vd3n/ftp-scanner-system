@@ -19,6 +19,7 @@ import (
 
 type FileScannerService interface {
 	ProcessFile(scanMsg *models.FileScanMessage, ftpClient ftpclient.FtpClientInterface, counterOfAllMessages int) error
+	ReturnMessage(scanMsg *models.FileScanMessage) error
 }
 
 type fileScannerService struct {
@@ -46,225 +47,460 @@ func NewFileScannerService(
 }
 
 func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpClient ftpclient.FtpClientInterface, counterOfAllMessages int) error {
+	/*
+		ctx := context.Background()
+		s.logger.Info("Starting file processing",
+			zap.String("file", scanMsg.FilePath),
+			zap.String("scan_id", scanMsg.ScanID))
 
-	ctx := context.Background()
-	s.logger.Info("Starting file processing",
+		// Подготовка локальной директории
+		localDir := filepath.Join(s.config.KafkaScanResultProducer.FileScanDownloadPath, scanMsg.ScanID)
+		if err := s.createLocalDir(localDir); err != nil {
+			s.logger.Error("file-scanner-service service: ProcessFile: Ошибка при создании локальной директории",
+				zap.String("file", scanMsg.FilePath),
+				zap.String("scan_id", scanMsg.ScanID))
+			return err
+		}
+		s.logger.Info("file-scanner-service service: ProcessFile: локальная директория создана",
+			zap.String("file", scanMsg.FilePath),
+			zap.String("scan_id", scanMsg.ScanID))
+
+		// Скачивание файла с ретраями
+		if err := s.retryDownloadFile(ctx, ftpClient, scanMsg.FilePath, localDir, s.config.MaxRetries, time.Duration(s.config.TimeoutSeconds)*time.Second); err != nil {
+			s.logger.Error("file-scanner-service service: ProcessFile: Ошибка при скачивании файла",
+				zap.String("file", scanMsg.FilePath),
+				zap.String("scan_id", scanMsg.ScanID))
+			return s.handleDownloadError(ctx, scanMsg, err)
+		}
+		s.logger.Info("file-scanner-service service: ProcessFile: файл успешно скачан",
+			zap.String("file", scanMsg.FilePath),
+			zap.String("scan_id", scanMsg.ScanID))
+
+		// Сканирование файла
+		result, err := s.scanFile(scanMsg, localDir)
+		if err != nil {
+			s.logger.Error("file-scanner-service service: ProcessFile: Ошибка при сканировании файла",
+				zap.String("file", scanMsg.FilePath),
+				zap.String("scan_id", scanMsg.ScanID))
+			return err
+		}
+		s.logger.Info("file-scanner-service service: ProcessFile: файл успешно сканирован",
+			zap.String("file", scanMsg.FilePath),
+			zap.String("scan_id", scanMsg.ScanID))
+
+		// Отправка результатов
+		if err := s.sendScanResults(ctx, scanMsg, result); err != nil {
+			s.logger.Error("file-scanner-service service: ProcessFile: Ошибка при отправке результатов сканирования",
+				zap.String("file", scanMsg.FilePath),
+				zap.String("scan_id", scanMsg.ScanID))
+			return err
+		}
+		s.logger.Info("file-scanner-service service: ProcessFile: результаты успешно отправлены",
+			zap.String("file", scanMsg.FilePath),
+			zap.String("scan_id", scanMsg.ScanID))
+
+		// Удаление файла и отправка счетчиков
+		if err := s.cleanupAndSendCompletedFileCounter(ctx, scanMsg, localDir); err != nil {
+			s.logger.Error("file-scanner-service service: ProcessFile: Ошибка при удалении файла и отправке счетчиков",
+				zap.String("file", scanMsg.FilePath),
+				zap.String("scan_id", scanMsg.ScanID))
+			return err
+		}
+		s.logger.Info("file-scanner-service service: ProcessFile: файл успешно удален",
+			zap.String("file", scanMsg.FilePath),
+			zap.String("scan_id", scanMsg.ScanID))
+		return nil
+	*/
+
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		s.logger.Error("file-scanner-service service: ProcessFile: PANIC RECOVERED",
+	// 			zap.String("file", scanMsg.FilePath),
+	// 			zap.String("scan_id", scanMsg.ScanID),
+	// 			zap.Any("reason", r))
+	// 		if err := s.ReturnMessage(scanMsg); err != nil {
+	// 			s.logger.Error("file-scanner-service service: ProcessFile: Ошибка при возврате сообщения обратно в топик",
+	// 				zap.String("file", scanMsg.FilePath),
+	// 				zap.String("scan_id", scanMsg.ScanID),
+	// 				zap.String("reason", "PANIC RECOVERED"),
+	// 				zap.Error(err))
+	// 		}
+
+	// 	}
+	// }()
+	s.logger.Info("file-scanner-service service: Сканируем файл",
+		// zap.Int("kafkaMsg", counterOfAllMessages),
+		zap.String("scanID", scanMsg.ScanID),
 		zap.String("file", scanMsg.FilePath),
-		zap.String("scan_id", scanMsg.ScanID))
+	)
 
-	// Подготовка локальной директории
 	localDir := filepath.Join(s.config.KafkaScanResultProducer.FileScanDownloadPath, scanMsg.ScanID)
-	if err := s.createLocalDir(localDir); err != nil {
-		s.logger.Error("file-scanner-service service: ProcessFile: Ошибка при создании локальной директории", 
-			zap.String("file", scanMsg.FilePath),
-			zap.String("scan_id", scanMsg.ScanID))
-		return err
-	}
-	s.logger.Info("file-scanner-service service: ProcessFile: локальная директория создана", 
-		zap.String("file", scanMsg.FilePath),
-		zap.String("scan_id", scanMsg.ScanID))
+	perm, err := strconv.ParseUint(s.config.KafkaScanResultProducer.Permision, 8, 32)
 
-	// Скачивание файла с ретраями
-	if err := s.retryDownloadFile(ctx, ftpClient, scanMsg.FilePath, localDir, s.config.MaxRetries, time.Duration(s.config.TimeoutSeconds)*time.Second); err != nil {
-		s.logger.Error("file-scanner-service service: ProcessFile: Ошибка при скачивании файла", 
-			zap.String("file", scanMsg.FilePath),
-			zap.String("scan_id", scanMsg.ScanID))
-		return s.handleDownloadError(ctx, scanMsg, err)
-	}
-	s.logger.Info("file-scanner-service service: ProcessFile: файл успешно скачан", 
-		zap.String("file", scanMsg.FilePath),
-		zap.String("scan_id", scanMsg.ScanID))
-
-	// Сканирование файла
-	result, err := s.scanFile(scanMsg, localDir)
 	if err != nil {
-		s.logger.Error("file-scanner-service service: ProcessFile: Ошибка при сканировании файла", 
-			zap.String("file", scanMsg.FilePath),
-			zap.String("scan_id", scanMsg.ScanID))
-		return err
+		return fmt.Errorf("ERROR: file-scanner-service service: kafkaMsg: %d, Ошибка при парсинге прав доступа: %v", counterOfAllMessages, err)
 	}
-	s.logger.Info("file-scanner-service service: ProcessFile: файл успешно сканирован", 
-		zap.String("file", scanMsg.FilePath),
-		zap.String("scan_id", scanMsg.ScanID))
 
-	// Отправка результатов
-	if err := s.sendScanResults(ctx, scanMsg, result); err != nil {
-		s.logger.Error("file-scanner-service service: ProcessFile: Ошибка при отправке результатов сканирования", 
-			zap.String("file", scanMsg.FilePath),
-			zap.String("scan_id", scanMsg.ScanID))
-		return err
-	}
-	s.logger.Info("file-scanner-service service: ProcessFile: результаты успешно отправлены", 
-		zap.String("file", scanMsg.FilePath),
-		zap.String("scan_id", scanMsg.ScanID))
+	fileMode := os.FileMode(perm)
+	s.logger.Info("file-scanner-service service: Создание директории",
+		// zap.Int("kafkaMsg", counterOfAllMessages),
+		zap.String("scanID", scanMsg.ScanID),
+		zap.String("dir", localDir),
+		zap.Uint64("perm", perm),
+	)
 
-	// Удаление файла и отправка счетчиков
-	if err := s.cleanupAndSendCounters(ctx, scanMsg, localDir); err != nil {
-		s.logger.Error("file-scanner-service service: ProcessFile: Ошибка при удалении файла и отправке счетчиков", 
-			zap.String("file", scanMsg.FilePath),
-			zap.String("scan_id", scanMsg.ScanID))
+	if err := os.MkdirAll(localDir, fileMode); err != nil {
+		s.logger.Error("file-scanner-service service: Ошибка при создании директории",
+			// zap.Int("kafkaMsg", counterOfAllMessages),
+			zap.String("scanID", scanMsg.ScanID),
+			zap.String("dir", localDir),
+			zap.Error(err),
+		)
 		return err
 	}
-	s.logger.Info("file-scanner-service service: ProcessFile: файл успешно удален",
+
+	// Запускаем скачивание в отдельной горутине
+	s.logger.Info("file-scanner-service service: Запускаем скачивание в отдельной горутине",
+		// zap.Int("kafkaMsg", counterOfAllMessages),
+		zap.String("scanID", scanMsg.ScanID),
+	)
+
+	s.logger.Info("file-scanner-service service: Готовимся к скачиванию с ретраями",
+		// zap.Int("kafkaMsg", counterOfAllMessages),
+		zap.String("scanID", scanMsg.ScanID),
+		zap.Int("maxRetries", s.config.MaxRetries),
+		zap.Int("timeoutSec", s.config.TimeoutSeconds),
+	)
+
+	var downloadErr error
+	for attempt := range s.config.MaxRetries {
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.TimeoutSeconds)*time.Second)
+
+		resultChan := make(chan error, 1)
+
+		s.logger.Info("file-scanner-service service: Попытка скачивания файла",
+			// zap.Int("kafkaMsg", counterOfAllMessages),
+			zap.String("scanID", scanMsg.ScanID),
+			zap.String("file", scanMsg.FilePath),
+			zap.Int("attempt", attempt),
+		)
+
+		go func() {
+			err := ftpClient.DownloadFile(scanMsg.FilePath, localDir)
+			resultChan <- err
+			close(resultChan)
+		}()
+
+		select {
+		case <-ctx.Done():
+			downloadErr = ctx.Err()
+			s.logger.Warn("file-scanner-service service: Таймаут при скачивании",
+				// zap.Int("kafkaMsg", counterOfAllMessages),
+				zap.String("scanID", scanMsg.ScanID),
+				zap.String("file", scanMsg.FilePath),
+				zap.Int("attempt", attempt),
+				zap.Error(downloadErr))
+		case err := <-resultChan:
+			downloadErr = err
+			if downloadErr != nil {
+				s.logger.Warn("file-scanner-service service: Ошибка при скачивании",
+					// zap.Int("kafkaMsg", counterOfAllMessages),
+					zap.String("scanID", scanMsg.ScanID),
+					zap.String("file", scanMsg.FilePath),
+					zap.Int("attempt", attempt),
+					zap.Error(downloadErr),
+				)
+			} else {
+				s.logger.Info("file-scanner-service service: Файл успешно скачан",
+					// zap.Int("kafkaMsg", counterOfAllMessages),
+					zap.String("scanID", scanMsg.ScanID),
+					zap.String("file", scanMsg.FilePath),
+					zap.Int("attempt", attempt),
+				)
+			}
+		}
+
+		cancel()
+
+		if downloadErr == nil {
+			break
+		}
+
+		if attempt == s.config.MaxRetries {
+			s.logger.Error("file-scanner-service service: Все попытки скачивания исчерпаны",
+				zap.String("scanID", scanMsg.ScanID),
+				zap.Int("kafkaMsg", counterOfAllMessages),
+				zap.String("file", scanMsg.FilePath),
+				zap.Int("attempts", s.config.MaxRetries),
+				zap.Error(downloadErr),
+			)
+			s.logger.Info("file-scanner-service: Возвращаем файл обратно в Kafka",
+				zap.String("scanID", scanMsg.ScanID),
+				// zap.Int("kafkaMsg", counterOfAllMessages),
+				zap.String("file", scanMsg.FilePath),
+			)
+			startTime := time.Now()
+			if err := s.producer.SendMessage(s.config.KafkaConsumer.ConsumerTopic, models.FileScanMessage{
+				ScanID:        scanMsg.ScanID,
+				FilePath:      scanMsg.FilePath,
+				ScanType:      scanMsg.ScanType,
+				FTPConnection: scanMsg.FTPConnection,
+			}); err != nil {
+				s.logger.Error("file-scanner-service: Ошибка при возврате файла в топик Kafka",
+					// zap.Int("kafkaMsg", counterOfAllMessages),
+					zap.String("scanID", scanMsg.ScanID),
+					zap.String("file", scanMsg.FilePath),
+					zap.Error(err),
+				)
+				filescannerservice.ReturnErrorDuration.Observe(time.Since(startTime).Seconds())
+				filescannerservice.ErrorCounter.Inc()
+			} else {
+				filescannerservice.ReturningFilesDuration.Observe(time.Since(startTime).Seconds())
+				filescannerservice.ReturnedFiles.Inc()
+				s.logger.Info("file-scanner-service: Файл успешно возвращен в топик Kafka",
+					zap.String("scanID", scanMsg.ScanID),
+					// zap.Int("kafkaMsg", counterOfAllMessages),
+					zap.String("file", scanMsg.FilePath),
+				)
+			}
+			return downloadErr
+		}
+	}
+	/*
+
+
+
+
+
+
+
+
+		resultChan := make(chan error, 1)
+		// Создаём контекст с таймаутом (например, 30 секунд; значение меняется в конфиге)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.TimeoutSeconds)*time.Second)
+		defer cancel()
+
+		go func() {
+			// startDownload := time.Now()
+			err := ftpClient.DownloadFile(scanMsg.FilePath, localDir)
+			// downloadTime := time.Since(startDownload).Seconds()
+			// filescannerservice.DownloadDuration.Observe(downloadTime)
+			// filescannerservice.DownloadedFiles.Inc()
+
+			resultChan <- err
+			close(resultChan)
+		}()
+
+		// Ожидаем завершения скачивания или истечения контекста
+		select {
+		case <-ctx.Done():
+
+			s.logger.Warn("file-scanner-service: Таймаут при скачивании файла",
+				zap.Int("kafkaMsg", counterOfAllMessages),
+				zap.String("file", scanMsg.FilePath),
+			)
+			s.logger.Info("file-scanner-service: Возвращаем файл обратно в Kafka",
+				zap.Int("kafkaMsg", counterOfAllMessages),
+				zap.String("file", scanMsg.FilePath),
+			)
+			startTime := time.Now()
+			if err := s.producer.SendMessage(s.config.KafkaConsumer.ConsumerTopic, models.FileScanMessage{
+				ScanID:        scanMsg.ScanID,
+				FilePath:      scanMsg.FilePath,
+				ScanType:      scanMsg.ScanType,
+				FTPConnection: scanMsg.FTPConnection,
+			}); err != nil {
+				s.logger.Error("file-scanner-service: Ошибка при возврате файла в топик Kafka",
+					zap.Int("kafkaMsg", counterOfAllMessages),
+					zap.String("file", scanMsg.FilePath),
+					zap.Error(err),
+				)
+				filescannerservice.ReturnErrorDuration.Observe(time.Since(startTime).Seconds())
+				filescannerservice.ErrorCounter.Inc()
+			} else {
+				filescannerservice.ReturningFilesDuration.Observe(time.Since(startTime).Seconds())
+				filescannerservice.ReturnedFiles.Inc()
+				s.logger.Info("file-scanner-service: Файл успешно возвращен в топик Kafka",
+					zap.Int("kafkaMsg", counterOfAllMessages),
+					zap.String("file", scanMsg.FilePath),
+				)
+			}
+			return ctx.Err()
+
+		case err := <-resultChan:
+
+			if err != nil {
+				s.logger.Error("file-scanner-service: Ошибка при скачивании файла",
+					zap.Int("kafkaMsg", counterOfAllMessages),
+					zap.String("file", scanMsg.FilePath),
+					zap.Error(err),
+				)
+				return err
+			}
+		}
+
+		s.logger.Info("file-scanner-service: Файл успешно скачан",
+			zap.Int("kafkaMsg", counterOfAllMessages),
+			zap.String("file", scanMsg.FilePath),
+		)
+
+
+
+
+	*/
+	s.logger.Info("file-scanner-service service: Запускаем сканирование",
+		zap.String("scanID", scanMsg.ScanID),
+		// zap.Int("kafkaMsg", counterOfAllMessages),
+	)
+
+	startScan := time.Now()
+	scanner, exists := s.scannerMap[scanMsg.ScanType]
+
+	if !exists {
+		s.logger.Error("file-scanner-service service: Тип сканирования не поддерживается",
+			zap.String("scanID", scanMsg.ScanID),
+			// zap.Int("kafkaMsg", counterOfAllMessages),
+			zap.String("scanType", scanMsg.ScanType),
+		)
+		return nil
+	}
+
+	result, err := scanner.Scan(filepath.Join(localDir, filepath.Base(scanMsg.FilePath)))
+
+	if err != nil {
+		s.logger.Error("file-scanner-service service: Ошибка при сканировании файла",
+			zap.String("scanID", scanMsg.ScanID),
+			// zap.Int("kafkaMsg", counterOfAllMessages),
+			zap.String("file", scanMsg.FilePath),
+			zap.Error(err),
+		)
+		return err
+	}
+
+	s.logger.Info("file-scanner-service service: Результат сканирования",
+		zap.String("scanID", scanMsg.ScanID),
+		// zap.Int("kafkaMsg", counterOfAllMessages),
+		zap.String("result", result),
+	)
+	filescannerservice.ScannedFiles.Inc()
+	scanTime := time.Since(startScan).Seconds()
+	filescannerservice.ScanDuration.Observe(scanTime)
+	s.logger.Info("file-scanner-service service: Удаляем файл после сканирования",
+		// zap.Int("kafkaMsg", counterOfAllMessages),
+		zap.String("scanID", scanMsg.ScanID),
 		zap.String("file", scanMsg.FilePath),
-		zap.String("scan_id", scanMsg.ScanID))
+	)
+	// Теперь можно удалить файл:
+
+	if err := os.Remove(filepath.Join(localDir, filepath.Base(scanMsg.FilePath))); err != nil {
+		s.logger.Error("file-scanner-service service: Не удалось удалить файл",
+			// zap.Int("kafkaMsg", counterOfAllMessages),
+			zap.String("scanID", scanMsg.ScanID),
+			zap.String("file", scanMsg.FilePath),
+			zap.Error(err),
+		)
+	} else {
+		s.logger.Info("file-scanner-service service: Файл успешно удалён после сканирования",
+			zap.String("scanID", scanMsg.ScanID),
+			// zap.Int("kafkaMsg", counterOfAllMessages),
+			zap.String("file", scanMsg.FilePath),
+		)
+	}
+
+	s.logger.Info("file-scanner-service service: Отправляем результат в топик сканирования",
+		zap.String("scanID", scanMsg.ScanID),
+		// zap.Int("kafkaMsg", counterOfAllMessages),
+	)
+
+	// Отправка результата сканирования в Kafka
+	startTime := time.Now()
+
+	if err := s.scanResultProducer.SendMessage(models.ScanResultMessage{
+		ScanID:   scanMsg.ScanID,
+		FilePath: scanMsg.FilePath,
+		ScanType: scanMsg.ScanType,
+		Result:   result,
+	}); err != nil {
+
+		s.logger.Error("file-scanner-service service: Ошибка при отправке результата сканирования в Kafka",
+			// zap.Int("kafkaMsg", counterOfAllMessages),
+			zap.String("scanID", scanMsg.ScanID),
+			zap.Error(err),
+		)
+		filescannerservice.ErrorCounter.Inc()
+		filescannerservice.ErrorSendingScanFilesResultDuration.Observe(time.Since(startTime).Seconds())
+		// return err
+	}
+
+	filescannerservice.SendingScanFilesResultsDuration.Observe(time.Since(startTime).Seconds())
+	filescannerservice.SendedScanFilesResults.Inc()
+	s.logger.Info("file-scanner-service service: Отправка результатов сканирования завершена",
+		// zap.Int("kafkaMsg", counterOfAllMessages),
+		zap.String("scanID", scanMsg.ScanID),
+	)
+
+	countMessage := models.CountMessage{
+		ScanID: scanMsg.ScanID,
+		Number: 1,
+	}
+
+	s.logger.Info("file-scanner-service service: Отправляем количество завершенных файлов",
+		// zap.Int("kafkaMsg", counterOfAllMessages),
+		zap.String("scanID", scanMsg.ScanID),
+		zap.Any("countMessage", countMessage),
+	)
+
+	// Отправка 1, как количество завершенных файлов
+	startTime = time.Now()
+
+	if err := s.producer.SendMessage(s.config.KafkaCompletedFilesCountProducer.CompletedFilesCountTopic, countMessage); err != nil {
+		s.logger.Error("file-scanner-service service: Ошибка при отправке количества отсканированных файлов в Kafka",
+			// zap.Int("kafkaMsg", counterOfAllMessages),
+			zap.String("scanID", scanMsg.ScanID),
+			zap.Error(err),
+		)
+		filescannerservice.ErrorSendingCompletedFilesDuration.Observe(time.Since(startTime).Seconds())
+		filescannerservice.ErrorCounter.Inc()
+
+		// return err
+	} else {
+		s.logger.Info("file-scanner-service service: Отправка количества завершенных файлов завершена",
+			// zap.Int("kafkaMsg", counterOfAllMessages),
+			zap.String("scanID", scanMsg.ScanID),
+		)
+		filescannerservice.SendingCompletedFilesDuration.Observe(time.Since(startTime).Seconds())
+		filescannerservice.SendedCompletedFiles.Inc()
+	}
+
+	s.logger.Info("file-scanner-service service: Отправка количества завершенных файлов завершена",
+		// zap.Int("kafkaMsg", counterOfAllMessages),
+		zap.String("scanID", scanMsg.ScanID),
+	)
+
 	return nil
 
-	/*
-	   log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Сканируем файл: %s", counterOfAllMessages, scanMsg.FilePath)
-
-	   // Создаём контекст с таймаутом (например, 30 секунд; при необходимости значение можно вынести в конфигурацию)
-	   ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	   defer cancel()
-
-	   // filescannerservice.ReceivedMessages.Inc()
-	   // Скачиваем файл
-	   log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Скачиваем файл: %s", counterOfAllMessages, scanMsg.FilePath)
-	   localDir := filepath.Join(s.config.KafkaScanResultProducer.FileScanDownloadPath, scanMsg.ScanID)
-	   perm, err := strconv.ParseUint(s.config.KafkaScanResultProducer.Permision, 8, 32)
-
-	   	if err != nil {
-	   		return fmt.Errorf("ERROR: file-scanner-service service: kafkaMsg: %d, Ошибка при парсинге прав доступа: %v", counterOfAllMessages, err)
-	   	}
-
-	   fileMode := os.FileMode(perm)
-	   log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Создание директории %s с правами %0o", counterOfAllMessages, localDir, perm)
-
-	   	if err := os.MkdirAll(localDir, fileMode); err != nil {
-	   		log.Printf("ERROR: file-scanner-service service: kafkaMsg: %d, Ошибка при создании директории %s: %v", counterOfAllMessages, localDir, err)
-	   		return err
-	   	}
-
-	   resultChan := make(chan error, 1)
-
-	   // Запускаем скачивание в отдельной горутине
-	   log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Запускаем скачивание в отдельной горутине", counterOfAllMessages)
-
-	   	go func() {
-	   		// startDownload := time.Now()
-	   		err := ftpClient.DownloadFile(scanMsg.FilePath, localDir)
-	   		// downloadTime := time.Since(startDownload).Seconds()
-	   		// filescannerservice.DownloadDuration.Observe(downloadTime)
-	   		// filescannerservice.DownloadedFiles.Inc()
-
-	   		resultChan <- err
-	   		close(resultChan)
-	   	}()
-
-	   // Ожидаем завершения скачивания или истечения контекста
-	   select {
-	   case <-ctx.Done():
-
-	   	log.Printf("WARNING: file-scanner-service: kafkaMsg: %d, Таймаут при скачивании файла %s", counterOfAllMessages, scanMsg.FilePath)
-	   	log.Printf("INFO: file-scanner-service: kafkaMsg: %d, Возвращаем файл %s обратно в Kafka", counterOfAllMessages, scanMsg.FilePath)
-	   	startTime := time.Now()
-	   	if err := s.producer.SendMessage(s.config.KafkaConsumer.ConsumerTopic, models.FileScanMessage{
-	   		ScanID:        scanMsg.ScanID,
-	   		FilePath:      scanMsg.FilePath,
-	   		ScanType:      scanMsg.ScanType,
-	   		FTPConnection: scanMsg.FTPConnection,
-	   	}); err != nil {
-	   		log.Printf("ERROR: file-scanner-service: kafkaMsg: %d, Ошибка при возврате файла %s в топик Kafka: %v", counterOfAllMessages, scanMsg.FilePath, err)
-	   		filescannerservice.ReturnErrorDuration.Observe(time.Since(startTime).Seconds())
-	   		filescannerservice.ErrorCounter.Inc()
-	   	} else {
-	   		filescannerservice.ReturningFilesDuration.Observe(time.Since(startTime).Seconds())
-	   		filescannerservice.ReturnedFiles.Inc()
-	   		log.Printf("INFO: file-scanner-service: kafkaMsg: %d, Файл %s успешно возвращен в топик Kafka", counterOfAllMessages, scanMsg.FilePath)
-	   	}
-	   	return ctx.Err()
-
-	   case err := <-resultChan:
-
-	   		if err != nil {
-	   			log.Printf("ERROR: file-scanner-service: kafkaMsg: %d, Ошибка при скачивании файла %s: %v", counterOfAllMessages, scanMsg.FilePath, err)
-	   			return err
-	   		}
-	   	}
-
-	   log.Printf("INFO: file-scanner-service: kafkaMsg: %d, Файл %s успешно скачан", counterOfAllMessages, scanMsg.FilePath)
-
-	   log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Запускаем сканирование", counterOfAllMessages)
-	   startScan := time.Now()
-	   scanner, exists := s.scannerMap[scanMsg.ScanType]
-
-	   	if !exists {
-	   		log.Printf("ERROR: file-scanner-service service: kafkaMsg: %d, Тип сканирования не поддерживается: %s", counterOfAllMessages, scanMsg.ScanType)
-	   		return nil
-	   	}
-
-	   result, err := scanner.Scan(filepath.Join(localDir, filepath.Base(scanMsg.FilePath)))
-
-	   	if err != nil {
-	   		log.Printf("ERROR: file-scanner-service service: kafkaMsg: %d, Ошибка при сканировании файла %s: %v", counterOfAllMessages, scanMsg.FilePath, err)
-	   		return err
-	   	}
-
-	   log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Результат сканирования: %s", counterOfAllMessages, result)
-	   filescannerservice.ScannedFiles.Inc()
-	   scanTime := time.Since(startScan).Seconds()
-	   filescannerservice.ScanDuration.Observe(scanTime)
-	   log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Удаляем файл %s после сканирования", counterOfAllMessages, scanMsg.FilePath)
-	   // Теперь можно удалить файл:
-
-	   	if err := os.Remove(filepath.Join(localDir, filepath.Base(scanMsg.FilePath))); err != nil {
-	   		log.Printf("ERROR: file-scanner-service service: kafkaMsg: %d, Не удалось удалить файл %s: %v", counterOfAllMessages, scanMsg.FilePath, err)
-	   	} else {
-
-	   		log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Файл %s успешно удалён после сканирования", counterOfAllMessages, scanMsg.FilePath)
-	   	}
-
-	   log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Отправляем результат в топик сканирования", counterOfAllMessages)
-	   // Отправляем результат в Kafka
-	   startTime := time.Now()
-
-	   	if err := s.scanResultProducer.SendMessage(models.ScanResultMessage{
-	   		ScanID:   scanMsg.ScanID,
-	   		FilePath: scanMsg.FilePath,
-	   		ScanType: scanMsg.ScanType,
-	   		Result:   result,
-	   	}); err != nil {
-
-	   		log.Printf("ERROR: file-scanner-service service: kafkaMsg: %d, Ошибка при отправке результата сканирования в Kafka: %v", counterOfAllMessages, err)
-	   		filescannerservice.ErrorCounter.Inc()
-	   		filescannerservice.ErrorSendingScanFilesResultDuration.Observe(time.Since(startTime).Seconds())
-	   		// return err
-	   	}
-
-	   filescannerservice.SendingScanFilesResultsDuration.Observe(time.Since(startTime).Seconds())
-	   filescannerservice.SendedScanFilesResults.Inc()
-	   log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Отправка результатов сканирования завершена", counterOfAllMessages)
-
-	   // сообщение количества завершенных файлов
-
-	   	countMessage := models.CountMessage{
-	   		ScanID: scanMsg.ScanID,
-	   		Number: 1,
-	   	}
-
-	   log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Отправляем количество завершенных файлов: %v", counterOfAllMessages, countMessage)
-	   // Отправляем количество завершенных файлов
-	   startTime = time.Now()
-
-	   	if err := s.producer.SendMessage(s.config.KafkaCompletedFilesCountProducer.CompletedFilesCountTopic, countMessage); err != nil {
-	   		log.Printf("ERROR: file-scanner-service service: kafkaMsg: %d, Ошибка при отправке количества отсканированных файлов в Kafka: %v", counterOfAllMessages, err)
-	   		filescannerservice.ErrorSendingCompletedFilesDuration.Observe(time.Since(startTime).Seconds())
-	   		filescannerservice.ErrorCounter.Inc()
-
-	   		// return err
-	   	} else {
-
-	   		log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Отправка количества завершенных файлов завершена", counterOfAllMessages)
-	   		filescannerservice.SendingCompletedFilesDuration.Observe(time.Since(startTime).Seconds())
-	   		filescannerservice.SendedCompletedFiles.Inc()
-	   	}
-
-	   log.Printf("INFO: file-scanner-service service: kafkaMsg: %d, Отправка количества завершенных файлов завершена", counterOfAllMessages)
-
-	   return nil
-	*/
 }
 
+func (s *fileScannerService) ReturnMessage(scanMsg *models.FileScanMessage) error {
+	// нужно добавить ретраи на возврат в топик
+	for attempt := 0; attempt < s.config.MaxRetries; attempt++ {
+		if err := s.producer.SendMessage(s.config.KafkaConsumer.ConsumerTopic, scanMsg); err == nil {
+			s.logger.Info("file-scanner-service service: Успешный возврат сообщения об ошибке в Kafka",
+				zap.String("scanID", scanMsg.ScanID),
+			)
+			return nil
+		} else {
+			s.logger.Error("file-scanner-service service: Ошибка при возврате сообщения обратно в Kafka",
+				zap.String("scanID", scanMsg.ScanID),
+				zap.Error(err),
+			)
+		}
+	}
+	return fmt.Errorf("file-scanner-service service: Ошибка при возврате сообщения обратно в Kafka после %d попыток", s.config.MaxRetries)
+}
+
+/*
 func (s *fileScannerService) retryDownloadFile(
 	ctx context.Context,
 	ftpClient ftpclient.FtpClientInterface,
@@ -386,8 +622,6 @@ func (s *fileScannerService) retryKafkaSendScanResult(
 	return fmt.Errorf("file-scanner-service: retryKafkaSend: Ошибка при отправке результата сканирования в Kafka после %d попыток", maxRetries)
 }
 
-
-
 func (s *fileScannerService) createLocalDir(localDir string) error {
 	perm, err := strconv.ParseUint(s.config.KafkaScanResultProducer.Permision, 8, 32)
 	if err != nil {
@@ -468,7 +702,7 @@ func (s *fileScannerService) sendScanResults(ctx context.Context, scanMsg *model
 	return nil
 }
 
-func (s *fileScannerService) cleanupAndSendCounters(ctx context.Context, scanMsg *models.FileScanMessage, localDir string) error {
+func (s *fileScannerService) cleanupAndSendCompletedFileCounter(ctx context.Context, scanMsg *models.FileScanMessage, localDir string) error {
 	// Удаление файла
 	filePath := filepath.Join(localDir, filepath.Base(scanMsg.FilePath))
 	if err := os.Remove(filePath); err != nil {
@@ -499,3 +733,4 @@ func (s *fileScannerService) cleanupAndSendCounters(ctx context.Context, scanMsg
 	filescannerservice.SendedCompletedFiles.Inc()
 	return nil
 }
+*/

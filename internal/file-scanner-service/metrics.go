@@ -2,6 +2,7 @@ package filescannerservice
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/push"
 )
 
 var (
@@ -252,4 +253,17 @@ func InitMetrics(instance string) {
 	SendingScanFilesResultsDuration = sendingScanFilesResultsDurationVec.WithLabelValues(instance).(prometheus.Histogram)
 	ErrorSendingCompletedFilesDuration = errorSendingCompletedFilesDurationVec.WithLabelValues(instance).(prometheus.Histogram)
 	SendingCompletedFilesDuration = sendingCompletedFilesDurationVec.WithLabelValues(instance).(prometheus.Histogram)
+}
+
+// NewPusher создает объект Pusher для отправки метрик в Pushgateway.
+// Параметры:
+//   - pushgatewayURL: URL адрес Pushgateway (например, "http://localhost:9091").
+//   - job: Название задания (job) для группировки метрик в Pushgateway.
+//   - instance: Значение instance, которое должно совпадать с переданным в InitMetrics.
+//
+// Возвращает настроенный объект Pusher, готовый к отправке метрик.
+func NewPusher(pushgatewayURL, job, instance string) *push.Pusher {
+	return push.New(pushgatewayURL, job).
+		// Grouping("instance", instance).
+		Gatherer(prometheus.DefaultGatherer)
 }

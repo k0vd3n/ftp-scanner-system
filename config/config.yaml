@@ -30,6 +30,10 @@ file_scanner_service:
   metrics:
     instance: "instance"
     prom_http_port: ":2112"
+    push_gateway:
+      url: "localhost:9091"
+      job_name: "file_scanner_service"
+      instance: "file_scanner_service"
   max_retries: 5
   timeout_seconds: 120
 

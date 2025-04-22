@@ -457,3 +457,61 @@ spec:
     port: 14268
     targetPort: 14268
   type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pushgateway
+  namespace: monitoring # Лучше разместить в том же неймспейсе, где Prometheus
+  labels:
+    app: pushgateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pushgateway
+  template:
+    metadata:
+      labels:
+        app: pushgateway
+    spec:
+      containers:
+      - name: pushgateway
+        image: prom/pushgateway:v1.6.2
+        ports:
+        - containerPort: 9091
+          name: http-metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pushgateway
+  namespace: monitoring
+  labels:
+    app: pushgateway
+spec:
+  selector:
+    app: pushgateway
+  ports:
+  - name: http
+    port: 9091
+    targetPort: http-metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: pushgateway
+  namespace: monitoring
+  labels:
+    prometheus: main  # Должно совпадать с `spec.ruleSelector` в Prometheus CR
+spec:
+  namespaceSelector:
+    matchNames:
+      - monitoring  # Неймспейс, где развернут Pushgateway
+  selector:
+    matchLabels:
+      app: pushgateway  # Метка пода из Deployment
+  podMetricsEndpoints:
+  - port: http-metrics  # Имя порта в контейнере Pushgateway
+    interval: 15s
+    path: /metrics

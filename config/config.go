@@ -43,6 +43,7 @@ type FileScannerConfig struct {
 type FileScannerMetrics struct {
 	PromHttpPort  string `yaml:"prom_http_port"`
 	InstanceLabel string `yaml:"instance"`
+	PushGateway   PushGatewayConfig `yaml:"push_gateway"`
 }
 
 type FileScannerConsumer struct {

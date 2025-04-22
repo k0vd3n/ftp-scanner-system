@@ -18,19 +18,26 @@ type KafkaHandlerInterface interface {
 }
 
 type KafkaHandler struct {
-	service  service.FileScannerService
-	consumer kafka.KafkaFileConsumerInterface
-	logger   *zap.Logger
+	service    service.FileScannerService
+	consumer   kafka.KafkaFileConsumerInterface
+	logger     *zap.Logger
+	cancelFunc context.CancelFunc
+	// context    context.Context
+	currentMsg *models.FileScanMessage // для хранения текущего сообщения
 }
 
 func NewKafkaHandler(service service.FileScannerService,
 	consumer kafka.KafkaFileConsumerInterface,
 	logger *zap.Logger,
+	cancelFunc context.CancelFunc,
+	// context context.Context,
 ) KafkaHandlerInterface {
 	return &KafkaHandler{
 		service:  service,
 		consumer: consumer,
 		logger:   logger,
+		cancelFunc: cancelFunc,
+		// context:  context,
 	}
 }
 
@@ -43,6 +50,26 @@ func (h *KafkaHandler) Start(ctx context.Context) {
 	defer func() {
 		if currentFTPClient != nil {
 			currentFTPClient.Close()
+		}
+		if r := recover(); r != nil {
+			h.logger.Error("file-scanner kafka-handler Start: PANIC RECOVERED", zap.Any("reason", r))
+			if h.currentMsg != nil {
+				if err := h.service.ReturnMessage(h.currentMsg); err != nil {
+					h.logger.Error("file-scanner kafka-handler Start: Ошибка при возврате сообщения обратно в топик",
+						zap.String("scanID", h.currentMsg.ScanID),
+						zap.String("reason", "PANIC RECOVERED"),
+						zap.Error(err))
+				} else {
+					h.logger.Info("file-scanner kafka-handler Start: Сообщение возвращено обратно в топик",
+						zap.String("scanID", h.currentMsg.ScanID),
+						zap.String("reason", "PANIC RECOVERED"))
+					filescannerservice.ReturnedFiles.Inc()
+				}
+			} else {
+				h.logger.Error("file-scanner kafka-handler Start: текущее сообщение не задано",
+					zap.String("reason", "PANIC RECOVERED"))
+			}
+			h.cancelFunc()
 		}
 	}()
 

@@ -172,6 +172,12 @@ data:
       metrics:
         instance: "instance"
         prom_http_port: ":2112"
+        push_gateway:
+          url: "pushgateway.monitoring.svc.cluster.local:9091"
+          job_name: "file_scanner_service"
+          instance: "file_scanner_service"
+      max_retries: 5
+      timeout_seconds: 180
     directory_lister_service:
       kafka:
         broker: "kafka-0.kafka-headless.staging.svc.cluster.local:9092"
@@ -183,7 +189,7 @@ data:
         scan_files_count_topic: "scan-files-count"
         completed_directories_count_topic: "completed-directories-count"
         max_retries: 5
-        timeout_seconds: 60
+        timeout_seconds: 90
       metrics:
         instance: "instance1"
         prom_http_port: ":2112"
@@ -286,7 +292,7 @@ spec:
     spec:
       containers:
       - name: main-service
-        image: k0vd3n/main-service:v0.0.5
+        image: k0vd3n/main-service:v0.0.17
         ports:
         - name: http
           containerPort: 8080
@@ -323,7 +329,7 @@ metadata:
   name: directory-lister-service
   namespace: staging
 spec:
-  replicas: 15
+  replicas: 20
   selector:
     matchLabels:
       app: directory-lister-service
@@ -335,7 +341,7 @@ spec:
     spec:
       containers:
       - name: directory-lister-service
-        image: k0vd3n/directory-lister-service:v0.0.6
+        image: k0vd3n/directory-lister-service:v0.0.17
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -370,7 +376,7 @@ metadata:
   name: file-scanner-service
   namespace: staging
 spec:
-  replicas: 5
+  replicas: 50
   selector:
     matchLabels:
       app: file-scanner-service
@@ -382,7 +388,7 @@ spec:
     spec:
       containers:
       - name: file-scanner-service
-        image: k0vd3n/file-scanner-service:v0.0.5
+        image: k0vd3n/file-scanner-service:v0.0.17
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -438,7 +444,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.5
+        image: k0vd3n/counter-reducer-service:v0.0.17
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -495,7 +501,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.5
+        image: k0vd3n/counter-reducer-service:v0.0.17
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -552,7 +558,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.5
+        image: k0vd3n/counter-reducer-service:v0.0.17
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -609,7 +615,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.5
+        image: k0vd3n/counter-reducer-service:v0.0.17
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -644,7 +650,7 @@ spec:
     spec:
       containers:
       - name: scan-result-reducer-service
-        image: k0vd3n/scan-result-reducer-service:v0.0.5
+        image: k0vd3n/scan-result-reducer-service:v0.0.17
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -678,7 +684,7 @@ spec:
     spec:
       containers:
       - name: status-service
-        image: k0vd3n/status-service:v0.0.5
+        image: k0vd3n/status-service:v0.0.17
         ports:
         - name: grpc 
           containerPort: 50053
@@ -727,7 +733,7 @@ spec:
     spec:
       containers:
       - name: report-service
-        image: k0vd3n/report-service:v0.0.5
+        image: k0vd3n/report-service:v0.0.17
         ports:
         - name: grpc
           containerPort: 50051
