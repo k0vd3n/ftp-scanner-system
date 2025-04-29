@@ -24,6 +24,24 @@ file_scanner_service:
         - scan_type: "zero_bytes"
           trigger_value: "512-"
           output_topics: ["large-result-topic"]
+        - scan_type: "file_extension"
+          trigger_value: "text/"
+          output_topics: ["text-file-topic"]
+        - scan_type: "file_extension"
+          trigger_value: "image/"
+          output_topics: ["image-file-topic"]
+        - scan_type: "line_count"
+          trigger_value: "0"
+          output_topics: ["empty-file-topic"]
+        - scan_type: "line_count"
+          trigger_value: "1-100"
+          output_topics: ["small-file-topic"]
+        - scan_type: "line_count"
+          trigger_value: "101-1000"
+          output_topics: ["medium-file-topic"]
+        - scan_type: "line_count"
+          trigger_value: "1001-"
+          output_topics: ["large-file-topic"]
   kafka_completed_files_count_producer:
     broker: "localhost:9092"
     completed_files_count_topic: "completed-files-count"

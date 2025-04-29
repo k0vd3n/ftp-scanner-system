@@ -17,6 +17,8 @@ var (
 	DirectoriesProcessed         prometheus.Counter
 	filesFoundVec                *prometheus.CounterVec
 	FilesFound                   prometheus.Counter
+	foundFilesByScanTypesVec     *prometheus.CounterVec
+	FilesFoundByScanTypes        prometheus.Counter
 	ftpListDurationVec           *prometheus.HistogramVec
 	FtpListDuration              prometheus.Histogram
 	kafkaMessagesSentDirsVec     *prometheus.CounterVec
@@ -85,6 +87,15 @@ func InitMetrics(instance string) {
 		},
 		[]string{"instance"},
 	)
+
+	foundFilesByScanTypesVec = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "directory_lister_found_files_multiplied_by_scan_types_total",
+			Help: "Количество найденных файлов умноженных на количество типов сканирования",
+		},
+		[]string{"instance"},
+	)
+
 	ftpListDurationVec = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "directory_lister_ftp_list_directory_duration_seconds",
@@ -151,6 +162,7 @@ func InitMetrics(instance string) {
 		ftpReconnectionsVec,
 		directoriesProcessedVec,
 		filesFoundVec,
+		foundFilesByScanTypesVec,
 		ftpListDurationVec,
 		kafkaMessagesSentDirsVec,
 		kafkaMessagesSentFilesVec,
@@ -168,6 +180,7 @@ func InitMetrics(instance string) {
 	FtpReconnections = ftpReconnectionsVec.WithLabelValues(instance)
 	DirectoriesProcessed = directoriesProcessedVec.WithLabelValues(instance)
 	FilesFound = filesFoundVec.WithLabelValues(instance)
+	FilesFoundByScanTypes = foundFilesByScanTypesVec.WithLabelValues(instance)
 	FtpListDuration = ftpListDurationVec.WithLabelValues(instance).(prometheus.Histogram)
 	KafkaMessagesSentDirectories = kafkaMessagesSentDirsVec.WithLabelValues(instance)
 	KafkaMessagesSentFiles = kafkaMessagesSentFilesVec.WithLabelValues(instance)

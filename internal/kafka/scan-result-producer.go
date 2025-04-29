@@ -79,28 +79,34 @@ func (k *KafkaScanResultProducer) determineTopics(msg models.ScanResultMessage) 
 }
 
 func (k *KafkaScanResultProducer) isRuleTriggered(rule config.RoutingRule, result string) bool {
+	// Попробуем как число (для zero_bytes, line_count и т.п.)
 	resInt, err := strconv.Atoi(result)
-	if err != nil {
-		return false
+	if err == nil {
+		// Число: проверка диапазона или точного совпадения
+		parts := strings.Split(rule.TriggerValue, "-")
+		switch len(parts) {
+		case 2: // Диапазон
+			min, max := 0, math.MaxInt32
+			if parts[0] != "" {
+				min, _ = strconv.Atoi(parts[0])
+			}
+			if parts[1] != "" {
+				max, _ = strconv.Atoi(parts[1])
+			}
+			return resInt >= min && (max == math.MaxInt32 || resInt < max)
+		default: // Точное значение
+			return result == rule.TriggerValue
+		}
 	}
 
-	parts := strings.Split(rule.TriggerValue, "-")
-	switch len(parts) {
-	case 2: // Диапазон
-		min, max := 0, math.MaxInt32
-
-		if parts[0] != "" {
-			min, _ = strconv.Atoi(parts[0])
-		}
-		if parts[1] != "" {
-			max, _ = strconv.Atoi(parts[1])
-		}
-
-		return resInt >= min && (max == math.MaxInt32 || resInt < max)
-
-	default: // Простое значение
-		return result == rule.TriggerValue
+	// Если не число — проверка MIME или строки (напр. file_extension)
+	// Поддержим wildcard: если trigger_value заканчивается на "/"
+	if strings.HasSuffix(rule.TriggerValue, "/") {
+		return strings.HasPrefix(result, rule.TriggerValue)
 	}
+
+	// Строгое строковое сравнение
+	return result == rule.TriggerValue
 }
 
 func (k *KafkaScanResultProducer) sendToTopic(topic string, msg models.ScanResultMessage) error {

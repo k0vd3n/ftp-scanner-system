@@ -97,6 +97,10 @@ func main() {
 		switch st {
 		case "zero_bytes":
 			scannerMap[st] = scanner.NewZeroBytesScanner()
+		case "filemeta":
+			scannerMap[st] = scanner.NewFileMetaScanner()
+		case "lines_counter":
+			scannerMap[st] = scanner.NewChunkLineCounterScanner()
 		}
 	}
 

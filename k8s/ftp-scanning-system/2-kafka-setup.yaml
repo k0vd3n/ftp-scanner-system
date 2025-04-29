@@ -23,6 +23,12 @@ spec:
           kafka-topics --create --topic small-result-topic --partitions 50 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \
           kafka-topics --create --topic medium-result-topic --partitions 50 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \
           kafka-topics --create --topic large-result-topic --partitions 50 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \
+          kafka-topics --create --topic empty-file-topic --partitions 1 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \
+          kafka-topics --create --topic small-file-topic --partitions 1 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \
+          kafka-topics --create --topic medium-file-topic --partitions 1 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \
+          kafka-topics --create --topic large-file-topic --partitions 1 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \
+          kafka-topics --create --topic text-file-topic --partitions 1 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \
+          kafka-topics --create --topic image-file-topic --partitions 1 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \
           kafka-topics --create --topic scan-directories-count --partitions 1 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \
           kafka-topics --create --topic scan-files-count --partitions 1 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \
           kafka-topics --create --topic completed-directories-count --partitions 1 --replication-factor 3 --config min.insync.replicas=2 --bootstrap-server kafka-0.kafka-headless.staging.svc.cluster.local:9092 && \

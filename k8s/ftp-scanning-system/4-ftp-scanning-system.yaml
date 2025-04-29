@@ -1,134 +1,3 @@
-# apiVersion: v1
-# kind: ConfigMap
-# metadata:
-#   name: ftp-scanner-config
-#   namespace: staging
-# data:
-#   # Используются плейсхолдеры для секции counter_reducer_service,
-#   # чтобы их можно было переопределять через переменные окружения (envsubst)
-#   config.yaml: |-
-#     file_scanner_service:
-#       kafka_consumer:
-#         brokers:
-#           - "kafka-broker:9092"
-#         consumer_topic: "files-to-scan"
-#         consumer_group: "file-scanner-group"
-#       kafka_scan_result_producer:
-#         broker: "kafka-broker:9092"
-#         file_scan_download_path: "/tmp/downloaded_files"
-#         permission: "0755"
-#         scanner_types: ["zero_bytes"]
-#         routing:
-#           default_topic: "scan-results"
-#           rules:
-#             - scan_type: "zero_bytes"
-#               trigger_value: "0"
-#               output_topics: ["empty-result-topic"]
-#             - scan_type: "zero_bytes" 
-#               trigger_value: "0-256"
-#               output_topics: ["small-result-topic"]
-#             - scan_type: "zero_bytes"
-#               trigger_value: "256-512"
-#               output_topics: ["medium-result-topic"]
-#             - scan_type: "zero_bytes"
-#               trigger_value: "512-"
-#               output_topics: ["large-result-topic"]
-#       kafka_completed_files_count_producer:
-#         broker: "kafka-broker:9092"
-#         completed_files_count_topic: "completed-files-count"
-#       metrics:
-#         instance: "instance"
-#         prom_http_port: ":2112"
-#     directory_lister_service:
-#       kafka:
-#         broker: "kafka-broker:9092"
-#         consumer_topic: "directories-to-scan"
-#         consumer_group: "dir-lister-group"
-#         directories_to_scan_topic: "directories-to-scan"
-#         scan_directories_count_topic: "scan-directories-count"
-#         files_to_scan_topic: "files-to-scan"
-#         scan_files_count_topic: "scan-files-count"
-#         completed_directories_count_topic: "completed-directories-count"
-#       metrics:
-#         instance: "instance1"
-#         prom_http_port: ":2112"
-#     main_service:
-#       kafka:
-#         broker: "kafka-broker:9092"
-#         directory_topic: "directories-to-scan"
-#       grpc:
-#         report_server_address: "report-service"
-#         report_server_port: ":50051"
-#         status_server_address: "status-service"
-#         status_server_port: ":50053"
-#       metrics:
-#         instance: "instance"
-#         prom_http_port: ":2112"
-#       http:
-#         port: ":8080"
-#     # Базовая конфигурация для counter_reducer_service.
-#     # Здесь используются переменные, которые будут переопределяться в разных деплойментах.
-#     counter_reducer_service:
-#       kafka:
-#         brokers:
-#           - "kafka-broker:9092"
-#         counter_reducer_topic: "${COUNTER_REDUCER_TOPIC}"
-#         counter_reducer_group: "${COUNTER_REDUCER_GROUP}"
-#         batch_size: 100000
-#         duration: 60
-#       metrics:
-#         instance: "instance"
-#         prom_http_port: ":2112"
-#       mongo:
-#         mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
-#         mongo_db: "testdb"
-#         mongo_collection: "${MONGO_COLLECTION}"
-#     scan_result_reducer_service:
-#       kafka:
-#         brokers:
-#           - "kafka-broker:9092"
-#         consumer_topic: "scan-results"
-#         consumer_group: "scan-results-reducer-consumer-group"
-#         batch_size: 100000
-#         duration: 60
-#       metrics:
-#         instance: "instance"
-#         prom_http_port: ":2112"
-#       mongo:
-#         mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
-#         mongo_db: "testdb"
-#         mongo_collection: "scan_reports"
-#     report_service:
-#       metrics:
-#         instance: "instance"
-#         prom_http_port: ":2112"
-#       mongo: 
-#         mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
-#         mongo_db: "testdb"
-#         mongo_collection: "scan_reports"
-#       grpc:
-#         server_port: ":50051"
-#       repository:
-#         directory: "/home/k0vd3n/go/src/ftp-scanner_try2/reports"
-#     status_service: 
-#       metrics:
-#         instance: "instance"
-#         prom_http_port: ":2112"
-#       mongo:
-#         mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
-#         mongo_db: "testdb"
-#         scan_directories_count_collection: "scan_directories_count"
-#         scan_files_count_collection: "scan_files_count"
-#         completed_directories_count_collection: "completed_directories_count"
-#         completed_files_count_collection: "completed_files_count"
-#       grpc:
-#         port: ":50053"
-#     push_gateway:
-#       url: "http://pushgateway:9091"
-#       job_name: "main-service"
-#       instance: "main-service"
-#       push_interval: 15
-# ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -166,6 +35,24 @@ data:
             - scan_type: "zero_bytes"
               trigger_value: "512-"
               output_topics: ["large-result-topic"]
+            - scan_type: "file_extension"
+              trigger_value: "text/"
+              output_topics: ["text-file-topic"]
+            - scan_type: "file_extension"
+              trigger_value: "image/"
+              output_topics: ["image-file-topic"]
+            - scan_type: "line_count"
+              trigger_value: "0"
+              output_topics: ["empty-file-topic"]
+            - scan_type: "line_count"
+              trigger_value: "1-100"
+              output_topics: ["small-file-topic"]
+            - scan_type: "line_count"
+              trigger_value: "101-1000"
+              output_topics: ["medium-file-topic"]
+            - scan_type: "line_count"
+              trigger_value: "1001-"
+              output_topics: ["large-file-topic"]
       kafka_completed_files_count_producer:
         broker: "kafka-0.kafka-headless.staging.svc.cluster.local:9092"
         completed_files_count_topic: "completed-files-count"
