@@ -33,9 +33,9 @@ func NewKafkaHandler(service service.FileScannerService,
 	// context context.Context,
 ) KafkaHandlerInterface {
 	return &KafkaHandler{
-		service:  service,
-		consumer: consumer,
-		logger:   logger,
+		service:    service,
+		consumer:   consumer,
+		logger:     logger,
 		cancelFunc: cancelFunc,
 		// context:  context,
 	}
@@ -79,6 +79,13 @@ func (h *KafkaHandler) Start(ctx context.Context) {
 			log.Println("file-scanner kafka-handler Start: Остановка обработки сообщений")
 			return
 		default:
+			//================
+			// if err := h.service.ProcessFile(h.currentMsg, currentFTPClient, 1); err != nil {
+			// 	log.Println("file-scanner kafka-handler Start: Ошибка обработки сообщения:", err)
+			// 	continue
+			// }
+
+			//================
 			counterOfAllMessages := 1
 			scanMsg, err := h.consumer.ReadMessage(ctx)
 			if err != nil {
@@ -86,7 +93,12 @@ func (h *KafkaHandler) Start(ctx context.Context) {
 				continue
 			}
 
+			// h.logger.Info("file-scanner kafka-handler Start: значение метрики полученных сообщений", zap.String("value", filescannerservice.ReceivedMessages.Desc().String()))
 			filescannerservice.ReceivedMessages.Inc()
+			// metric := &dto.Metric{}
+			// if err := filescannerservice.ReceivedMessages.Write(metric); err == nil {
+			// 	log.Printf("Увеличено ReceivedMessages, новое значение: %f", metric.Counter.GetValue())
+			// }
 
 			// Проверяем необходимость нового подключения
 			needNewConnection := currentFTPClient == nil ||

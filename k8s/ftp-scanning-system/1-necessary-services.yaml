@@ -345,6 +345,7 @@ data:
     db.createCollection("scan_files_count");
     db.createCollection("completed_directories_count");
     db.createCollection("completed_files_count");
+    db.createCollection("metrics");
 ---
 apiVersion: apps/v1
 kind: StatefulSet

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"ftp-scanner_try2/config"
 	filescannerservice "ftp-scanner_try2/internal/file-scanner-service"
@@ -14,8 +15,11 @@ import (
 	"ftp-scanner_try2/internal/file-scanner-service/service"
 	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/logger"
+	"ftp-scanner_try2/internal/mongodb"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 )
 
@@ -38,24 +42,53 @@ func main() {
 		zapLogger.Fatal("File-scanner-service: main: Ошибка загрузки конфига", zap.Error(err))
 	}
 
-	// Инициализация метрик
-	filescannerservice.InitMetrics(cfg.FileScanner.Metrics.InstanceLabel)
+	// instanceID := "instance"
+	instanceID := os.Getenv("POD_UID")
+	if instanceID == "" {
+		instanceID = os.Getenv("POD_NAME")
+	}
+	if instanceID == "" {
+		instanceID = cfg.FileScanner.Metrics.InstanceLabel
+	}
+	if instanceID == "" {
+		instanceID = "localhost"
+	}
+	zapLogger.Info("Using instanceID", zap.String("instance", instanceID))
+
+	zapLogger.Info("File-scanner-service: main: Инициализация MongoDB")
+	mongoOpts := options.Client().ApplyURI(cfg.FileScanner.Mongo.MongoUri)
+	mongoClient, err := mongo.Connect(context.Background(), mongoOpts)
+	if err != nil {
+		zapLogger.Fatal("Не удалось подключиться к MongoDB", zap.Error(err))
+	}
+	defer mongoClient.Disconnect(context.Background())
+
+	zapLogger.Info("File-scanner-service: main: Инициализация репозитория метрик")
+	filescannerservice.InitMetrics(instanceID)
+	metricsRepo := mongodb.NewMongoMetricRepository(
+		mongoClient,
+		cfg.FileScanner.Mongo.MongoDb,
+		cfg.FileScanner.Mongo.MongoCollection,
+	)
+
+	// Пытаемся загрузить ранее сохранённые метрики
+	zapLogger.Info("File-scanner-service: main: Пытаемся загрузить ранее сохранённые метрики")
+	err = filescannerservice.LoadMetricsFromMongo(context.Background(), metricsRepo, instanceID)
+	if err != nil {
+		zapLogger.Warn("Не удалось загрузить метрики из MongoDB", zap.Error(err))
+	} else {
+		zapLogger.Info("Метрики успешно загружены из MongoDB")
+	}
+
 	go func() {
 		zapLogger.Info("File-scanner-service: main: Запуск HTTP-сервера для метрик",
 			zap.String("port", cfg.FileScanner.Metrics.PromHttpPort))
-
-		http.Handle("/metrics", promhttp.Handler())
+		handler := promhttp.Handler()
+		http.Handle("/metrics", handler)
 		if err := http.ListenAndServe(cfg.FileScanner.Metrics.PromHttpPort, nil); err != nil {
 			zapLogger.Fatal("File-scanner-service: main: Ошибка HTTP-сервера для метрик", zap.Error(err))
 		}
 	}()
-
-	// Создание пушера для всех метрик
-	pusher := filescannerservice.NewPusher(
-		cfg.FileScanner.Metrics.PushGateway.URL,
-		cfg.FileScanner.Metrics.PushGateway.JobName,
-		cfg.FileScanner.Metrics.PushGateway.Instance,
-	)
 
 	// Инициализация сканеров
 	scannerTypes := cfg.FileScanner.KafkaScanResultProducer.ScannerTypes
@@ -105,7 +138,6 @@ func main() {
 		zapLogger,
 	)
 
-
 	// 1) Контекст для внутренней отмены (panic, ошибки и т.п.)
 	internalCtx, internalCancel := context.WithCancel(context.Background())
 	defer internalCancel()
@@ -121,36 +153,26 @@ func main() {
 	signalCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 
-	
-
 	// Запуск обработки сообщений
 	// ctx, cancel := context.WithCancel(context.Background())
 	zapLogger.Info("file-scanner-service: main: Запуск обработки сообщений")
 
-	// defer func() {
-	// 	if r := recover(); r != nil {
-	// 		zapLogger.Error("file-scanner-service: main: PANIC RECOVERED произошло аварийное завершение", zap.Any("panic", r))
-	// 	}
-	// 	zapLogger.Info("file-scanner-service: main: Остановка обработки сообщений")
-	// 	if err := pusher.Push(); err != nil {
-	// 		zapLogger.Error("file-scanner-service: main: Ошибка отправки метрик", zap.Error(err))
-	// 	}
-	// }()
-
 	go kafkaHandler.Start(internalCtx)
 	select {
 	case <-internalCtx.Done():
+		zapLogger.Info("Внутренняя отмена, сохраняем метрики в MongoDB…")
 		// внутренняя отмена: пушим метрики
-		if err := pusher.Push(); err != nil {
-			zapLogger.Error("Ошибка отправки метрик при внутренней отмене", zap.Error(err))
+		if err := filescannerservice.SaveMetricsToMongo(context.Background(), metricsRepo, instanceID); err != nil {
+			zapLogger.Error("Ошибка сохранения метрик в MongoDB", zap.Error(err))
 		} else {
-			zapLogger.Info("Метрики успешно отправлены после внутренней отмены")
+			zapLogger.Info("Метрики успешно сохранены в MongoDB")
 		}
+		time.Sleep(15 * time.Second)
 	case <-signalCtx.Done():
 		// внешняя отмена (Ctrl+C или kill): ничего не пушим
 		zapLogger.Info("Получен сигнал ОС, завершаем без отправки метрик")
 	}
-	
+
 	// Ожидание сигнала завершения
 	// <-stop
 	// cancel()

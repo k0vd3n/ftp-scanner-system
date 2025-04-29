@@ -133,7 +133,7 @@ func (s *fileScannerService) ProcessFile(scanMsg *models.FileScanMessage, ftpCli
 		zap.String("scanID", scanMsg.ScanID),
 		zap.String("file", scanMsg.FilePath),
 	)
-
+	// panic("ААААААААММММММООООООГУСССССС")
 	localDir := filepath.Join(s.config.KafkaScanResultProducer.FileScanDownloadPath, scanMsg.ScanID)
 	perm, err := strconv.ParseUint(s.config.KafkaScanResultProducer.Permision, 8, 32)
 

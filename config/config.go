@@ -38,11 +38,18 @@ type FileScannerConfig struct {
 	Metrics                          FileScannerMetrics                     `yaml:"metrics"`
 	MaxRetries                       int                                    `yaml:"max_retries"`
 	TimeoutSeconds                   int                                    `yaml:"timeout_seconds"`
+	Mongo                            FileScannerMongo                       `yaml:"mongo"`
+}
+
+type FileScannerMongo struct {
+	MongoUri        string `yaml:"mongo_uri"`
+	MongoDb         string `yaml:"mongo_db"`
+	MongoCollection string `yaml:"mongo_collection"`
 }
 
 type FileScannerMetrics struct {
-	PromHttpPort  string `yaml:"prom_http_port"`
-	InstanceLabel string `yaml:"instance"`
+	PromHttpPort  string            `yaml:"prom_http_port"`
+	InstanceLabel string            `yaml:"instance"`
 	PushGateway   PushGatewayConfig `yaml:"push_gateway"`
 }
 

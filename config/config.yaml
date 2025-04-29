@@ -6,7 +6,7 @@ file_scanner_service:
     consumer_group: "file-scanner-group"
   kafka_scan_result_producer:
     broker: "localhost:9092"
-    file_scan_download_path: "/media/k0vd3n/Новый\ том/tmp_ftp_system/downloaded_files"
+    file_scan_download_path: "/home/k0vd3n/tmp"
     permission: "0755"
     scanner_types: ["zero_bytes"]
     routing:
@@ -27,6 +27,10 @@ file_scanner_service:
   kafka_completed_files_count_producer:
     broker: "localhost:9092"
     completed_files_count_topic: "completed-files-count"
+  mongo:
+    mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
+    mongo_db: "testdb"
+    mongo_collection: "metrics" 
   metrics:
     instance: "instance"
     prom_http_port: ":2112"

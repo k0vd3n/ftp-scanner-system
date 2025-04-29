@@ -5,9 +5,11 @@ import (
 	"ftp-scanner_try2/config"
 	"ftp-scanner_try2/internal/models"
 	"log"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // Реализация интерфейса для
@@ -186,4 +188,40 @@ func (r *MongoSaveReportRepository) InsertScanReports(ctx context.Context, repor
 
 	log.Printf("MongoDB: Успешно вставлено %d отчетов", len(docs))
 	return nil
+}
+
+// MongoMetricRepository — MongoDB-реализация
+type MongoMetricRepository struct {
+	client     *mongo.Client
+	database   string
+	collection string
+}
+
+func NewMongoMetricRepository(client *mongo.Client, db, coll string) MetricRepository {
+	return &MongoMetricRepository{client, db, coll}
+}
+
+func (r *MongoMetricRepository) Save(ctx context.Context, instance string, payload []byte) error {
+	col := r.client.Database(r.database).Collection(r.collection)
+	doc := bson.M{
+		"instance": instance,
+		"payload":  payload,
+		"saved_at": time.Now(),
+	}
+	_, err := col.InsertOne(ctx, doc)
+	return err
+}
+
+func (r *MongoMetricRepository) Load(ctx context.Context, instance string) ([]byte, error) {
+	col := r.client.Database(r.database).Collection(r.collection)
+	filter := bson.M{"instance": instance}
+	opts := options.FindOne().SetSort(bson.M{"saved_at": -1})
+	var result struct {
+		Payload []byte `bson:"payload"`
+	}
+	err := col.FindOne(ctx, filter, opts).Decode(&result)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	return result.Payload, err
 }

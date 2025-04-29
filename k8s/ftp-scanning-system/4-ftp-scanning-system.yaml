@@ -169,14 +169,18 @@ data:
       kafka_completed_files_count_producer:
         broker: "kafka-0.kafka-headless.staging.svc.cluster.local:9092"
         completed_files_count_topic: "completed-files-count"
+      mongo:
+        mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
+        mongo_db: "testdb"
+        mongo_collection: "${MONGO_COLLECTION}" 
       metrics:
-        instance: "instance"
+        instance: "${POD_UID}"
         prom_http_port: ":2112"
         push_gateway:
           url: "pushgateway.monitoring.svc.cluster.local:9091"
           job_name: "file_scanner_service"
           instance: "file_scanner_service"
-      max_retries: 5
+      max_retries: 3
       timeout_seconds: 180
     directory_lister_service:
       kafka:
@@ -188,7 +192,7 @@ data:
         files_to_scan_topic: "files-to-scan"
         scan_files_count_topic: "scan-files-count"
         completed_directories_count_topic: "completed-directories-count"
-        max_retries: 5
+        max_retries: 3
         timeout_seconds: 90
       metrics:
         instance: "instance1"
@@ -292,7 +296,7 @@ spec:
     spec:
       containers:
       - name: main-service
-        image: k0vd3n/main-service:v0.0.17
+        image: k0vd3n/main-service:v0.0.19
         ports:
         - name: http
           containerPort: 8080
@@ -341,7 +345,7 @@ spec:
     spec:
       containers:
       - name: directory-lister-service
-        image: k0vd3n/directory-lister-service:v0.0.17
+        image: k0vd3n/directory-lister-service:v0.0.19
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -386,16 +390,50 @@ spec:
         app: file-scanner-service
         component: ftp-scanner
     spec:
+      initContainers:
+      - name: config-init
+        image: alpine:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            apk add --no-cache gettext &&
+            envsubst < /config/config.yaml > /app/config/config.yaml
+        env:
+        - name: MONGO_COLLECTION
+          value: "metrics"
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: config-volume
+          mountPath: /config
+          readOnly: true
+        - name: app-config
+          mountPath: /app/config
       containers:
       - name: file-scanner-service
-        image: k0vd3n/file-scanner-service:v0.0.17
+        image: k0vd3n/file-scanner-service:v0.0.19
         ports:
         - name: http-metrics
           containerPort: 2112
+        env:
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
         volumeMounts:
-        - name: config-volume
-          mountPath: /app/config/config.yaml
-          subPath: config.yaml
+        - name: app-config
+          mountPath: /app/config
       volumes:
       - name: config-volume
         configMap:
@@ -403,6 +441,9 @@ spec:
           items:
           - key: config.yaml
             path: config.yaml
+      - name: app-config
+        emptyDir: {}
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -444,7 +485,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.17
+        image: k0vd3n/counter-reducer-service:v0.0.19
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -501,7 +542,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.17
+        image: k0vd3n/counter-reducer-service:v0.0.19
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -558,7 +599,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.17
+        image: k0vd3n/counter-reducer-service:v0.0.19
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -615,7 +656,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.17
+        image: k0vd3n/counter-reducer-service:v0.0.19
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -650,7 +691,7 @@ spec:
     spec:
       containers:
       - name: scan-result-reducer-service
-        image: k0vd3n/scan-result-reducer-service:v0.0.17
+        image: k0vd3n/scan-result-reducer-service:v0.0.19
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -684,7 +725,7 @@ spec:
     spec:
       containers:
       - name: status-service
-        image: k0vd3n/status-service:v0.0.17
+        image: k0vd3n/status-service:v0.0.19
         ports:
         - name: grpc 
           containerPort: 50053
@@ -733,7 +774,7 @@ spec:
     spec:
       containers:
       - name: report-service
-        image: k0vd3n/report-service:v0.0.17
+        image: k0vd3n/report-service:v0.0.19
         ports:
         - name: grpc
           containerPort: 50051

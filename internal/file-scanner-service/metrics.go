@@ -1,8 +1,14 @@
 package filescannerservice
 
 import (
+	"context"
+	"encoding/binary"
+	"ftp-scanner_try2/internal/mongodb"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/push"
+	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -267,3 +273,178 @@ func NewPusher(pushgatewayURL, job, instance string) *push.Pusher {
 		// Grouping("instance", instance).
 		Gatherer(prometheus.DefaultGatherer)
 }
+
+// // GatherMetrics собирает все метрики из DefaultGatherer.
+// func GatherMetrics() ([]models.Metric, error) {
+// 	families, err := prometheus.DefaultGatherer.Gather()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	now := time.Now().UTC()
+// 	var result []models.Metric
+
+// 	for _, fam := range families {
+// 		for _, m := range fam.Metric {
+// 			labels := make(map[string]string, len(m.Label))
+// 			for _, lp := range m.Label {
+// 				labels[lp.GetName()] = lp.GetValue()
+// 			}
+
+// 			var val float64
+// 			switch fam.GetType() {
+// 			case dto.MetricType_COUNTER:
+// 				val = m.GetCounter().GetValue()
+// 			case dto.MetricType_GAUGE:
+// 				val = m.GetGauge().GetValue()
+// 			case dto.MetricType_HISTOGRAM:
+// 				// сохраняем сумму событий
+// 				val = m.GetHistogram().GetSampleSum()
+// 			default:
+// 				continue
+// 			}
+
+// 			result = append(result, models.Metric{
+// 				Name:      fam.GetName(),
+// 				Labels:    labels,
+// 				Value:     val,
+// 				Timestamp: now,
+// 			})
+// 		}
+// 	}
+
+// 	return result, nil
+// }
+
+// // GetMetricVecByName возвращает по имени метрики либо CounterVec, либо HistogramVec.
+// // Если метрика не найдена, возвращает (nil, nil).
+// func GetMetricVecByName(name string) (c *prometheus.CounterVec, h *prometheus.HistogramVec) {
+//     switch name {
+//     // === CounterVec ===
+//     case "file_scanner_received_messages_total":
+//         return receivedMessagesVec, nil
+//     case "file_scanner_saved_files_total":
+//         return savedFilesCounterVec, nil
+//     case "file_scanner_ftp_reconnections_total":
+//         return ftpReconnectionsVec, nil
+//     case "file_scanner_result_messages_sent_total":
+//         return resultMessagesSentVec, nil
+//     case "file_scanner_completed_files_sent_total":
+//         return sendedCompletedFilesVec, nil
+//     case "file_scanner_errors_total":
+//         return errorCounterVec, nil
+//     case "file_scanner_returned_files_total":
+//         return returnedFilesVec, nil
+//     case "file_scanner_downloaded_files_total":
+//         return downloadedFilesVec, nil
+//     case "file_scanner_scanned_files_total":
+//         return scannedFilesVec, nil
+//     case "file_scanner_sended_files_total":
+//         return sendedScanFilesResultsVec, nil
+
+//     // === HistogramVec ===
+//     case "file_scanner_download_duration_seconds":
+//         return nil, downloadDurationVec
+//     case "file_scanner_saving_duration_seconds":
+//         return nil, savingDurationVec
+//     case "file_scanner_scan_duration_seconds":
+//         return nil, scanDurationVec
+//     case "file_scanner_return_error_duration_seconds":
+//         return nil, returnErrorDurationVec
+//     case "file_scanner_returning_files_duration_seconds":
+//         return nil, returningFilesDurationVec
+//     case "file_scanner_error_sending_scan_files_result_duration_seconds":
+//         return nil, errorSendingScanFilesResultDuration
+//     case "file_scanner_sending_scan_files_results_duration_seconds":
+//         return nil, sendingScanFilesResultsDurationVec
+//     case "file_scanner_error_sending_completed_files_duration_seconds":
+//         return nil, errorSendingCompletedFilesDurationVec
+//     case "file_scanner_sending_completed_files_duration_seconds":
+//         return nil, sendingCompletedFilesDurationVec
+
+//     default:
+//         return nil, nil
+//     }
+// }
+
+// SaveMetricsToMongo собирает все метрики из DefaultGatherer, сериализует их и сохраняет в MongoDB.
+func SaveMetricsToMongo(ctx context.Context, repo mongodb.MetricRepository, instance string) error {
+	mfs, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		return err
+	}
+	var buf []byte
+	for _, mf := range mfs {
+		b, err := proto.Marshal(mf)
+		if err != nil {
+			return err
+		}
+		// префикс-длина (4 байта LE)
+		tmp := make([]byte, 4)
+		binary.LittleEndian.PutUint32(tmp, uint32(len(b)))
+		buf = append(buf, tmp...)
+		buf = append(buf, b...)
+	}
+	return repo.Save(ctx, instance, buf)
+}
+
+// LoadMetricsFromMongo загружает сохраненные счётчики из MongoDB и добавляет их в текущие метрики.
+func LoadMetricsFromMongo(ctx context.Context, repo mongodb.MetricRepository, instance string) error {
+	payload, err := repo.Load(ctx, instance)
+	if err != nil {
+		return err
+	}
+	offset := 0
+	for offset < len(payload) {
+		length := int(binary.LittleEndian.Uint32(payload[offset:]))
+		offset += 4
+		mf := &dto.MetricFamily{}
+		if err := proto.Unmarshal(payload[offset:offset+length], mf); err != nil {
+			return err
+		}
+		offset += length
+
+		switch mf.GetType() {
+		case dto.MetricType_COUNTER:
+			for _, m := range mf.Metric {
+				for _, lp := range m.Label {
+					if lp.GetName() == "instance" && lp.GetValue() == instance {
+						value := m.GetCounter().GetValue()
+						switch mf.GetName() {
+						case "file_scanner_received_messages_total":
+							ReceivedMessages.Add(value)
+						case "file_scanner_saved_files_total":
+							SavedFilesCounter.Add(value)
+						case "file_scanner_ftp_reconnections_total":
+							FtpReconnections.Add(value)
+						case "file_scanner_result_messages_sent_total":
+							ResultMessagesSent.Add(value)
+						case "file_scanner_completed_files_sent_total":
+							SendedCompletedFiles.Add(value)
+						case "file_scanner_errors_total":
+							ErrorCounter.Add(value)
+						case "file_scanner_returned_files_total":
+							ReturnedFiles.Add(value)
+						case "file_scanner_downloaded_files_total":
+							DownloadedFiles.Add(value)
+						case "file_scanner_scanned_files_total":
+							ScannedFiles.Add(value)
+						case "file_scanner_sended_files_total":
+							SendedScanFilesResults.Add(value)
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// // preloadedGatherer отдаёт при Gather() заранее загруженные MetricFamily.
+// type preloadedGatherer struct {
+// 	mfs []*dto.MetricFamily
+// }
+
+// func (g *preloadedGatherer) Gather() ([]*dto.MetricFamily, error) {
+// 	return g.mfs, nil
+// }

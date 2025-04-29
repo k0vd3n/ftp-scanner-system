@@ -21,3 +21,8 @@ type CounterReducerRepository interface {
 type SaveReportRepository interface {
 	InsertScanReports(ctx context.Context, reports []models.ScanReport) error
 }
+
+type MetricRepository interface {
+    Save(ctx context.Context, instance string, payload []byte) error
+    Load(ctx context.Context, instance string) ([]byte, error)
+}
