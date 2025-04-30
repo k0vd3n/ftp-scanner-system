@@ -32,6 +32,6 @@ type KafkaCounterReducerConsumerInterface interface {
 }
 
 type KafkaScanResultReducerConsumerInterface interface {
-	ReadMessages(ctx context.Context, batchSize int, duration time.Duration) ([]models.ScanResultMessage, error)
+	ReadMessages(ctx context.Context, batchSize int, duration time.Duration) ([]models.ScanResultMessage, int, error)
 	CloseReader() error
 }

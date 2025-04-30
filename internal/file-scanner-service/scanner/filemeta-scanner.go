@@ -10,7 +10,7 @@ import (
 type FileMetaScanner struct{}
 
 func NewFileMetaScanner() *FileMetaScanner {
-    return &FileMetaScanner{}
+	return &FileMetaScanner{}
 }
 
 // Scan сканирует файл, используя magic, чтобы определить его расширение.
@@ -23,6 +23,6 @@ func (s *FileMetaScanner) Scan(filePath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	time.Sleep(10 * time.Second)
+	time.Sleep(150 * time.Millisecond)
 	return mtype.String(), nil
 }

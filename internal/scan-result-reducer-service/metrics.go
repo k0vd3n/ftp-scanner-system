@@ -9,6 +9,9 @@ var (
 	receivedMessagesVec *prometheus.CounterVec
 	ReceivedMessages    prometheus.Counter
 
+	receivedMessagesKafkaHandlerVec          *prometheus.CounterVec
+	ReceivedMessagesKafkaHandler prometheus.Counter
+
 	// Вектор и обычная метрика для количества полученных файлов для редьюсирования
 	receivedFilesVec *prometheus.CounterVec
 	ReceivedFiles    prometheus.Counter
@@ -36,6 +39,14 @@ func InitMetrics(instance string) {
 	receivedMessagesVec = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "scan_result_reducer_received_messages_total",
+			Help: "Общее количество полученных сообщений для редьюса результатов сканирования",
+		},
+		[]string{"instance"},
+	)
+
+	receivedMessagesKafkaHandlerVec = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "scan_result_reducer_received_messages_kafka_handler_total",
 			Help: "Общее количество полученных сообщений для редьюса результатов сканирования",
 		},
 		[]string{"instance"},
@@ -80,6 +91,7 @@ func InitMetrics(instance string) {
 	// Регистрация векторов метрик
 	prometheus.MustRegister(
 		receivedMessagesVec,
+		receivedMessagesKafkaHandlerVec,
 		receivedFilesVec,
 		receivedDirectoriesVec,
 		processingDurationVec,
@@ -89,6 +101,7 @@ func InitMetrics(instance string) {
 
 	// Инициализация обычных метрик с привязкой лейбла instance
 	ReceivedMessages = receivedMessagesVec.WithLabelValues(instance)
+	ReceivedMessagesKafkaHandler = receivedMessagesKafkaHandlerVec.WithLabelValues(instance)
 	ReceivedFiles = receivedFilesVec.WithLabelValues(instance)
 	ReceivedDirectories = receivedDirectoriesVec.WithLabelValues(instance)
 	ProcessingDuration = processingDurationVec.WithLabelValues(instance).(prometheus.Histogram)

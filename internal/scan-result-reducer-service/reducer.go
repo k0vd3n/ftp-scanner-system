@@ -109,6 +109,7 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 					Result: msg.Result,
 				})
 				fileExists = true
+				totalFiles++
 				break
 			}
 		}
@@ -144,7 +145,7 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 
 func (r *reducerService) Start(ctx context.Context) {
 	for {
-		messages, err := r.consumer.ReadMessages(
+		messages, totalMessages, err := r.consumer.ReadMessages(
 			ctx,
 			r.cfg.ScanResultReducer.Kafka.BatchSize,
 			time.Duration(r.cfg.ScanResultReducer.Kafka.Duration)*time.Second,
@@ -153,17 +154,19 @@ func (r *reducerService) Start(ctx context.Context) {
 			log.Printf("scan-result-reducer-service main: Ошибка чтения сообщений из Kafka: %v", err)
 			continue
 		}
-		log.Printf("scan-result-reducer-service main: Получено %d сообщений", len(messages))
+		log.Printf("scan-result-reducer-service main: Получено %d сообщений", totalMessages)
 
-		if len(messages) > 0 {
-			ReceivedMessages.Add(float64(len(messages)))
-			log.Printf("scan-result-reducer-service main: Редьюс %d сообщений...", len(messages))
+		if totalMessages > 0 {
+			ReceivedMessages.Add(float64(totalMessages))
+			log.Printf("scan-result-reducer-service main: Редьюс %d сообщений...", totalMessages)
 			reducedResults := r.ReduceScanResults(messages)
+			ReceivedMessagesKafkaHandler.Add(float64(totalMessages))
 			log.Printf("scan-result-reducer-service main: Сохранение %d сообщений в MongoDB...", len(reducedResults))
 			if err := r.repo.InsertScanReports(ctx, reducedResults); err != nil {
 				log.Printf("scan-result-reducer-service main: Ошибка сохранения данных в MongoDB: %v", err)
 				ErrorsTotal.Inc()
 			}
+
 			log.Printf("scan-result-reducer-service main: Сообщения отправлены в MongoDB")
 		}
 	}

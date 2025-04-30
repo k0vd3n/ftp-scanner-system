@@ -18,54 +18,57 @@ type CounterConsumer struct {
 func NewCounterConsumer(brokers []string, topic, groupID string) KafkaCounterReducerConsumerInterface {
 	return &CounterConsumer{
 		Reader: kafka.NewReader(kafka.ReaderConfig{
-			Brokers: brokers,
-			Topic:   topic,
-			GroupID: groupID,
+			Brokers:        brokers,
+			Topic:          topic,
+			GroupID:        groupID,
+			CommitInterval: 0,
 		}),
 	}
 }
 
-func (c *CounterConsumer) ReadMessages(ctx context.Context, batchSize int, duration time.Duration) ([]models.CountMessage, error) {
-	log.Printf("counter-reducer-consumer: Чтение сообщений из Kafka топика %s...",  c.Reader.Config().Topic)
-	var messages []models.CountMessage
+func (c *CounterConsumer) ReadMessages(
+	parentCtx context.Context,
+	batchSize int,
+	duration time.Duration,
+) ([]models.CountMessage, error) {
+	log.Printf("counter-reducer-consumer: читаем из топика %s...", c.Reader.Config().Topic)
 
-	// Установка тайм-аута через контекст
-	ctx, cancel := context.WithTimeout(ctx, duration)
+	// таймаутный контекст
+	ctx, cancel := context.WithTimeout(parentCtx, duration)
 	defer cancel()
 
-	log.Printf("counter-reducer-consumer: Начало цикла чтения сообщений...")
-	counter := 0
-	for i := 0; i < batchSize; i++ {
-		select {
-		case <-ctx.Done(): // Если время истекло, выходим из цикла
-			log.Println("Counter-reducer-consumer: Тайм-аут: прекращаем чтение сообщений")
-			return messages, nil
-		default:
-			msg, err := c.Reader.ReadMessage(ctx)
-			if err != nil {
-				// Проверяем, не истек ли контекст
-				if errors.Is(err, context.DeadlineExceeded) {
-					log.Println("Counter-reducer-consumer: Контекст завершен по тайм-ауту")
-					return messages, nil
-				}
-				return nil, err
-			}
-			if counter < 10 {
-				log.Printf("Counter-reducer-consumer: Получено сообщение: %v\n", string(msg.Value))
-				counter++
-			}
+	var msgs []models.CountMessage
+	total := 0
 
-			var countMsg models.CountMessage
-			if err := json.Unmarshal(msg.Value, &countMsg); err != nil {
-				log.Printf("Counter-reducer-consumer: Ошибка при разборе сообщения: %v", err)
-				continue
+	for len(msgs) < batchSize {
+		kafkaMsg, err := c.Reader.FetchMessage(ctx)
+		if err != nil {
+			// таймаут или контекст истёк
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				log.Println("counter-reducer-consumer: таймаут, заканчиваем чтение")
+				break
 			}
-			messages = append(messages, countMsg)
+			return nil, err
+		}
+
+		var resultMsg models.CountMessage
+		if err := json.Unmarshal(kafkaMsg.Value, &resultMsg); err != nil {
+			log.Printf("counter-reducer-consumer: unmarshal error: %v", err)
+			continue
+		}
+
+
+		msgs = append(msgs, resultMsg)
+		total++
+		log.Printf("counter-reducer-consumer: получено сообщение: %s", string(kafkaMsg.Value))
+		
+		if err := c.Reader.CommitMessages(ctx, kafkaMsg); err != nil {
+			log.Printf("counter-reducer-consumer: Ошибка commit: %v", err)
 		}
 	}
 
-	log.Printf("Counter-reducer-consumer: Сообщений получено: %d\n", len(messages))
-	return messages, nil
+	log.Printf("counter-reducer-consumer: всего сообщений: %d", total)
+	return msgs, nil
 }
 
 func (c *CounterConsumer) CloseReader() error {

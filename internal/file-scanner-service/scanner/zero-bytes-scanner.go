@@ -3,6 +3,7 @@ package scanner
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 type ZeroBytesScanner struct{}
@@ -41,5 +42,6 @@ func (s *ZeroBytesScanner) Scan(filePath string) (string, error) {
 		}
 	}
 
+	time.Sleep(9 * time.Millisecond)
 	return strconv.Itoa(zeroCount), nil
 }

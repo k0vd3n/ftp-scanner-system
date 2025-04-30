@@ -21,53 +21,49 @@ func NewScanResultConsumer(brokers []string, topic, groupID string) KafkaScanRes
 			Brokers: brokers,
 			Topic:   topic,
 			GroupID: groupID,
+			CommitInterval: 0,
 		}),
 	}
 }
 
-func (c *ScanResultConsumer) ReadMessages(ctx context.Context, batchSize int, duration time.Duration) ([]models.ScanResultMessage, error) {
-	log.Printf("scan-result-reducer-consumer: Чтение сообщений из Kafka...")
-	var messages []models.ScanResultMessage
+func (c *ScanResultConsumer) ReadMessages(ctx context.Context, batchSize int, duration time.Duration) ([]models.ScanResultMessage, int, error) {
+    ctx, cancel := context.WithTimeout(ctx, duration)
+    defer cancel()
 
-	// Установка тайм-аута через контекст
-	ctx, cancel := context.WithTimeout(ctx, duration)
-	defer cancel()
+    var messages []models.ScanResultMessage
+    total := 0
 
-	log.Printf("scan-result-reducer-consumer: Начало цикла чтения сообщений...")
-	counter := 0
+    for len(messages) < batchSize {
+        // if total >= batchSize {
+        //     break
+        // }
+        msg, err := c.Reader.FetchMessage(ctx)
+        if err != nil {
+            if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				log.Println("scan-result-reducer-consumer: таймаут, заканчиваем чтение")
+                break
+            }
+            return nil, total, err
+        }
 
-	for i := 0; i < batchSize; i++ {
-		select {
-		case <-ctx.Done(): // Если время истекло, выходим из цикла
-			log.Println("scan-result-reducer-consumer: Тайм-аут: прекращаем чтение сообщений")
-			return messages, nil
-		default:
-			msg, err := c.Reader.ReadMessage(ctx)
-			if err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					log.Println("scan-result-reducer-consumer: Контекст завершен по тайм-ауту")
-					return messages, nil
-				}
-				return nil, err
-			}
-			if counter < 10 {
-				log.Printf("Counter-reducer-consumer: Получено сообщение: %v\n", string(msg.Value))
-				counter++
-			}
+        var resultMsg models.ScanResultMessage
+        if err := json.Unmarshal(msg.Value, &resultMsg); err != nil {
+            log.Printf("scan-result-reducer-consumer: Ошибка unmarshal: %v", err)
+            // не прибавляем total — пропускаем
+            continue
+        }
 
-			var resultMsg models.ScanResultMessage
-			if err := json.Unmarshal(msg.Value, &resultMsg); err != nil {
-				log.Printf("scan-result-reducer-consumer: Ошибка при разборе сообщения: %v", err)
-				continue
-			}
+        messages = append(messages, resultMsg)
+        total++
+		log.Printf("scan-result-reducer-consumer: Получено сообщение: %v", resultMsg) 
 
-			messages = append(messages, resultMsg)
+		if err := c.Reader.CommitMessages(ctx, msg); err != nil {
+			log.Printf("scan-result-reducer-consumer: Ошибка commit: %v", err)
 		}
+    }
 
-	}
-
-	log.Printf("scan-result-reducer-consumer: Получено сообщений: %d\n", len(messages))
-	return messages, nil
+	log.Printf("scan-result-reducer-consumer: Получено %d сообщений", total)
+    return messages, total, nil
 }
 
 func (c *ScanResultConsumer) CloseReader() error {

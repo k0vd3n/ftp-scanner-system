@@ -8,7 +8,7 @@ file_scanner_service:
     broker: "localhost:9092"
     file_scan_download_path: "/home/k0vd3n/tmp"
     permission: "0755"
-    scanner_types: ["zero_bytes"]
+    scanner_types: ["zero_bytes", "filemeta", "lines_counter"]
     routing:
       default_topic: "scan-results"
       rules:
@@ -51,7 +51,7 @@ file_scanner_service:
     mongo_collection: "metrics" 
   metrics:
     instance: "instance"
-    prom_http_port: ":2112"
+    prom_http_port: ":2114"
     push_gateway:
       url: "localhost:9091"
       job_name: "file_scanner_service"
@@ -73,7 +73,7 @@ directory_lister_service:
     timeout_seconds: 60
   metrics:
     instance: "instance"
-    prom_http_port: ":2112"
+    prom_http_port: ":2113"
   # jaeger:
   #   service_name: "directory_lister_service"
   #   agent_host: "localhost"
@@ -129,7 +129,7 @@ scan_result_reducer_service:
     mongo_collection: "scan_reports"
   metrics:
     instance: "instance"
-    prom_http_port: ":2112"
+    prom_http_port: ":2115"
 
 report_service:
   mongo: 

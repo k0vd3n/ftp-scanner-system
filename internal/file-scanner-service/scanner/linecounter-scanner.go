@@ -16,7 +16,6 @@ func NewChunkLineCounterScanner() *ChunkLineCounterScanner {
 }
 
 // Scan сканирует файл, подсчитывая количество строк блоками по 128К.
-//
 func (s *ChunkLineCounterScanner) Scan(filePath string) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -51,6 +50,6 @@ func (s *ChunkLineCounterScanner) Scan(filePath string) (string, error) {
 		}
 	}
 
-	time.Sleep(15 * time.Second)
+	time.Sleep(58 * time.Millisecond)
 	return strconv.Itoa(totalLines), nil
 }
