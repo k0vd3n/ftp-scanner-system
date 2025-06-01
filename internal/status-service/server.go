@@ -4,8 +4,9 @@ import (
 	"context"
 	"ftp-scanner_try2/api/grpc/proto"
 	"ftp-scanner_try2/config"
-	"log"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type StatusServerInterface interface {
@@ -17,22 +18,28 @@ type StatusServer struct {
 	proto.UnimplementedStatusServiceServer
 	service StatusService
 	config  config.StatusServiceMongo
+	logger  *zap.Logger
 }
 
 // Конструктор сервера
-func NewStatusServer(service StatusService, config config.StatusServiceMongo) StatusServerInterface {
+func NewStatusServer(service StatusService, config config.StatusServiceMongo, logger *zap.Logger) StatusServerInterface {
 	return &StatusServer{
 		service: service,
 		config:  config,
+		logger:  logger,
 	}
 }
 
 // gRPC метод получения счетчиков
 func (s *StatusServer) GetStatus(ctx context.Context, req *proto.StatusRequest) (*proto.StatusResponse, error) {
-	log.Printf("status-service server: GetCounters: Получаем счетчики для scan_id: %s", req.ScanId)
+	s.logger.Info("gRPC: Получение счетчиков", zap.String("scan_id", req.ScanId))
 
-	log.Printf("status-service server: GetCounters: Запрос получения счетчиков из коллекций %s, %s, %s, %s для scan_id=%s", 
-	s.config.ScanFilesCount, s.config.ScanDirectoriesCount, s.config.CompletedDirectoriesCount, s.config.CompletedFilesCount, req.ScanId)
+	s.logger.Info("gRPC: Получение счетчиков",
+		zap.String("scan_id", req.ScanId),
+		zap.String("scanFilesCount", s.config.ScanFilesCount),
+		zap.String("scanDirectoriesCount", s.config.ScanDirectoriesCount),
+		zap.String("completedDirectoriesCount", s.config.CompletedDirectoriesCount),
+		zap.String("completedFilesCount", s.config.CompletedFilesCount))
 	RequestsTotal.Inc()
 	overrallStart := time.Now()
 
@@ -42,18 +49,21 @@ func (s *StatusServer) GetStatus(ctx context.Context, req *proto.StatusRequest) 
 	DbQueryDuration.Observe(dbDuration)
 	if err != nil {
 		ErrorsTotal.Inc()
-		log.Printf("status-service server: GetCounters: Ошибка получения счетчиков для scan_id %s: %v", req.ScanId, err)
+		s.logger.Error("gRPC: Ошибка получения счетчиков", zap.Error(err), zap.String("scan_id", req.ScanId))
 		return nil, err
 	}
 
-	log.Printf("status-service server: GetCounters: Счетчик directories_count: %d", counters.DirectoriesCount)
-	log.Printf("status-service server: GetCounters: Счетчик files_count: %d", counters.FilesCount)
-	log.Printf("status-service server: GetCounters: Счетчик completed_directories: %d", counters.CompletedDirectories)
-	log.Printf("status-service server: GetCounters: Счетчик completed_files: %d", counters.CompletedFiles)
+	s.logger.Info("gRPC: Счетчики получены для ID скана",
+		zap.String("scan_id", req.ScanId),
+		zap.Int64("directories_count", counters.DirectoriesCount),
+		zap.Int64("files_count", counters.FilesCount),
+		zap.Int64("completed_directories", counters.CompletedDirectories),
+		zap.Int64("completed_files", counters.CompletedFiles))
 
 	overallDuration := time.Since(overrallStart).Seconds()
+	s.logger.Info("Измеренное время обработки запроса", zap.Float64("seconds", overallDuration))
 	ProcessingDuration.Observe(overallDuration)
-	log.Printf("status-service server: GetCounters: время обработки запроса %.4f сек", overallDuration)
+	s.logger.Info("status-service server: GetCounters: время обработки запроса", zap.Float64("seconds", overallDuration))
 	return &proto.StatusResponse{
 		ScanId:               counters.ScanID,
 		DirectoriesCount:     counters.DirectoriesCount,

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+        // 1. Считываем scan_id из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const scanId = urlParams.get('scan_id');
+        if (!scanId) {
+          document.body.innerHTML = '<p style="color:red">Ошибка: параметр scan_id обязателен в URL</p>';
+          throw new Error('scan_id is missing');
+        }
+      
+        // 2. Показываем его в интерфейсе
+        window.addEventListener('DOMContentLoaded', () => {
+          document.getElementById('scanId').textContent = scanId;
+        });
+      
+        // 3. Оборачиваем оригинальную loadDirectory, чтобы в fetch всегда был scan_id
+        const _origLoad = window.loadDirectory;
+        window.loadDirectory = (Path, noHistory = false) =>
+          _origLoad(`${Path}`, noHistory, scanId);
+      
+        // 4. Патчим сам fetch: теперь это три аргумента
+        async function loadDirectory(Path, noHistory, scanId) {
+          try {
+            const url = `/api/report?scan_id=${encodeURIComponent(scanId)}&Path=${encodeURIComponent(Path)}`;
+            const response = await fetch(url);
+            if (!response.ok) {
+              throw new Error(`Server returned ${response.status}`);
+            }
+            const data = await response.json();
+            if (!noHistory) {
+              historyStack = historyStack.slice(0, historyIndex + 1);
+              historyStack.push(Path);
+              historyIndex++;
+            }
+            const currentPath = Path !== "" ? Path : data.Directory.Directory;
+            document.getElementById('currentPath').textContent = currentPath;
+            renderDirectory(data.Directory);
+            updateNavigationButtons();
+          } catch (err) {
+            console.error("Failed to load Directory:", err);
+            alert("Не удалось загрузить директорию: " + err.message);
+          }
+        }
+      </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSON File Explorer</title>
+  <style>
+      body {
+          font-family: Arial, sans-serif;
+          padding: 20px;
+      }
+      .Directory, .file {
+          padding: 5px;
+          margin: 2px 0;
+          cursor: pointer;
+      }
+      .Directory {
+          font-weight: bold;
+          color: darkblue;
+      }
+      .file {
+          color: darkslategray;
+      }
+      #currentPath {
+          font-weight: bold;
+          margin: 10px 0;
+      }
+      .indent {
+          margin-left: 20px;
+      }
+      .nav-button {
+          margin-right: 10px;
+          padding: 5px 10px;
+      }
+  </style>
+</head>
+<body>
+  <h1>JSON File Explorer</h1>
+  <div>
+      <button id="backButton" class="nav-button" disabled>← Back</button>
+  </div>
+  <p><strong>Scan ID:</strong> <span id="scanId"></span></p>
+  <p><strong>Current Path:</strong> <span id="currentPath">/</span></p>
+  <div id="explorer"></div>
+
+  <script>
+      let historyStack = [];
+      let historyIndex = -1;
+
+      // Функция renderDirectory отображает содержимое директории: поддиректории и файлы.
+      function renderDirectory(Directory) {
+          const explorer = document.getElementById('explorer');
+          explorer.innerHTML = '';
+
+          // Вывод поддиректорий. Отображается только последний сегмент полного пути.
+          Directory.Subdirectory.forEach(subdir => {
+              const dirDiv = document.createElement('div');
+              const parts = subdir.Directory.split('/');
+              const name = parts[parts.length - 1] || subdir.Directory;
+              dirDiv.textContent = name;
+              dirDiv.className = 'Directory indent';
+              dirDiv.onclick = () => loadDirectory(subdir.Directory);
+              explorer.appendChild(dirDiv);
+          });
+
+          // Вывод файлов с их ScanResults.
+          Directory.Files.forEach(file => {
+              const fileDiv = document.createElement('div');
+              const parts = file.Path.split('/');
+              const name = parts[parts.length - 1] || file.Path;
+              const scanResults = file.ScanResults.map(sr => `${sr.Type}: ${sr.Result}`).join(', ');
+              fileDiv.textContent = `${name} (${scanResults})`;
+              fileDiv.className = 'file indent';
+              explorer.appendChild(fileDiv);
+          });
+      }
+
+      // Обновляем состояние кнопки "Назад".
+      function updateNavigationButtons() {
+          document.getElementById('backButton').disabled = historyIndex <= 0;
+      }
+
+      // Кнопка "Назад": переходим к предыдущей директории.
+      document.getElementById('backButton').addEventListener('click', () => {
+          if (historyIndex > 0) {
+              historyIndex--;
+              const Path = historyStack[historyIndex];
+              loadDirectory(Path, true);
+          }
+      });
+
+      // Изначально загружаем корневую директорию.
+      loadDirectory("");
+  </script>
+</body>
+</html>

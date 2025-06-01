@@ -51,6 +51,13 @@ type ReportRequest struct {
 
 // ReportResponse представляет собой ответ с ссылкой на отчет.
 type ReportResponse struct {
-	ScanID    string `json:"scan_id"`    // Идентификатор сканирования
-	ReportURL string `json:"report_url"` // Ссылка на отчет
+	ScanID  string `json:"scan_id"` // Идентификатор сканирования
+	Message string `json:"message"` // Сообщение
+}
+
+// Объект-ответ для динамического запроса,
+// включающий ScanID и найденную директорию.
+type DirectoryResponse struct {
+	ScanID    string    `json:"ScanID"`
+	Directory Directory `json:"Directory"`
 }

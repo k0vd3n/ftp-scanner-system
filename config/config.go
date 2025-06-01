@@ -20,15 +20,15 @@ func LoadUnifiedConfig(path string) (*UnifiedConfig, error) {
 }
 
 type UnifiedConfig struct {
-	FileScanner       FileScannerConfig       `yaml:"file_scanner_service"`
-	DirectoryLister   DirectoryListerConfig   `yaml:"directory_lister_service"`
-	MainService       MainServiceConfig       `yaml:"main_service"`
-	CounterReducer    CounterReducerConfig    `yaml:"counter_reducer_service"`
-	ScanResultReducer ScanResultReducerConfig `yaml:"scan_result_reducer_service"`
-	ReportService     ReportServiceConfig     `yaml:"report_service"`
-	StatusService     StatusServiceConfig     `yaml:"status_service"`
-	PushGateway       PushGatewayConfig       `yaml:"push_gateway"`
-	// Jaeger            JaegerConfig            `yaml:"jaeger"`
+	FileScanner           FileScannerConfig           `yaml:"file_scanner_service"`
+	DirectoryLister       DirectoryListerConfig       `yaml:"directory_lister_service"`
+	MainService           MainServiceConfig           `yaml:"main_service"`
+	CounterReducer        CounterReducerConfig        `yaml:"counter_reducer_service"`
+	ScanResultReducer     ScanResultReducerConfig     `yaml:"scan_result_reducer_service"`
+	GenerateReportService GenerateReportServiceConfig `yaml:"generate_report_service"`
+	GetReportService      GetReportServiceConfig      `yaml:"get_report_service"`
+	StatusService         StatusServiceConfig         `yaml:"status_service"`
+	PushGateway           PushGatewayConfig           `yaml:"push_gateway"`
 }
 
 type FileScannerConfig struct {
@@ -86,7 +86,6 @@ type RoutingConfig struct {
 type DirectoryListerConfig struct {
 	Kafka   DirectoryListerKafkaConfig `yaml:"kafka"`
 	Metrics DirectoryListerPrometheus  `yaml:"metrics"`
-	// Jaeger  JaegerConfig               `yaml:"jaeger"`
 }
 
 type DirectoryListerKafkaConfig struct {
@@ -125,14 +124,17 @@ type MainServiceKafka struct {
 }
 
 type MainServiceGrpc struct {
-	ReportServerAddress string `yaml:"report_server_address"`
-	ReportServerPort    string `yaml:"report_server_port"`
-	StatusServerAddress string `yaml:"status_server_address"`
-	StatusServerPort    string `yaml:"status_server_port"`
+	GeneateReportServerAddress string `yaml:"generate_report_server_address"`
+	GenerateReportServerPort   string `yaml:"generate_report_server_port"`
+	GetReportServerAddress     string `yaml:"get_report_server_address"`
+	GetReportServerPort        string `yaml:"get_report_server_port"`
+	StatusServerAddress        string `yaml:"status_server_address"`
+	StatusServerPort           string `yaml:"status_server_port"`
 }
 
 type MainServiceHttp struct {
-	Port string `yaml:"port"`
+	Port    string `yaml:"port"`
+	WebPath string `yaml:"web_path"`
 }
 
 type CounterReducerConfig struct {
@@ -185,29 +187,51 @@ type ScanResultReducerMongo struct {
 	MongoCollection string `yaml:"mongo_collection"`
 }
 
-type ReportServiceConfig struct {
-	Mongo      ReportServiceMongo      `yaml:"mongo"`
-	Grpc       ReportServiceGrpc       `yaml:"grpc"`
-	Repository ReportServiceRepository `yaml:"repository"`
-	Metrics    ReportServiceMetrics    `yaml:"metrics"`
+type GetReportServiceConfig struct {
+	Mongo   GetReportServiceMongo   `yaml:"mongo"`
+	Grpc    GetReportServiceGrpc    `yaml:"grpc"`
+	Metrics GetReportServiceMetrics `yaml:"metrics"`
 }
 
-type ReportServiceMetrics struct {
-	PromHttpPort  string `yaml:"prom_http_port"`
-	InstanceLabel string `yaml:"instance"`
-}
-
-type ReportServiceMongo struct {
+type GetReportServiceMongo struct {
 	MongoUri        string `yaml:"mongo_uri"`
 	MongoDb         string `yaml:"mongo_db"`
 	MongoCollection string `yaml:"mongo_collection"`
 }
 
-type ReportServiceGrpc struct {
+type GetReportServiceGrpc struct {
 	ServerPort string `yaml:"server_port"`
 }
 
-type ReportServiceRepository struct {
+type GetReportServiceMetrics struct {
+	PromHttpPort  string `yaml:"prom_http_port"`
+	InstanceLabel string `yaml:"instance"`
+}
+
+type GenerateReportServiceConfig struct {
+	Mongo      GenerateReportServiceMongo      `yaml:"mongo"`
+	Grpc       GenerateReportServiceGrpc       `yaml:"grpc"`
+	Repository GenerateReportServiceRepository `yaml:"repository"`
+	Metrics    GenerateReportServiceMetrics    `yaml:"metrics"`
+}
+
+type GenerateReportServiceMetrics struct {
+	PromHttpPort  string `yaml:"prom_http_port"`
+	InstanceLabel string `yaml:"instance"`
+}
+
+type GenerateReportServiceMongo struct {
+	MongoUri         string `yaml:"mongo_uri"`
+	MongoDb          string `yaml:"mongo_db"`
+	MongoCollection1 string `yaml:"mongo_collection1"`
+	MongoCollection2 string `yaml:"mongo_collection2"`
+}
+
+type GenerateReportServiceGrpc struct {
+	ServerPort string `yaml:"server_port"`
+}
+
+type GenerateReportServiceRepository struct {
 	Directory string `yaml:"directory"`
 }
 

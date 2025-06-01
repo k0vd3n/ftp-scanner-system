@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"time"
 )
 
 // ChunkLineCounterScanner — сканер строк блоками по 128К.
@@ -19,37 +18,33 @@ func NewChunkLineCounterScanner() *ChunkLineCounterScanner {
 func (s *ChunkLineCounterScanner) Scan(filePath string) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return "", err
+		return strconv.Itoa(0), err
 	}
 	defer f.Close()
 
-	const bufSize = 128 * 1024 // 128 КБ
+	const bufSize = 128 * 1024
 	buf := make([]byte, bufSize)
-	var totalLines int
-	var carry bool // был ли незавершённый "\n" из предыдущего блока
+	totalNewlines := 0
+	var lastByte byte
 
 	for {
 		n, err := f.Read(buf)
 		if n > 0 {
 			chunk := buf[:n]
-			count := bytes.Count(chunk, []byte{'\n'})
-			// если предыдущий блок не заканчивался \n, первая строка — продолжение
-			if carry && chunk[0] != '\n' {
-				// лишняя «завершённая» строка не считается
-				count--
-			}
-			totalLines += count
-			// подготовим carry: true, если последний байт != '\n'
-			carry = chunk[n-1] != '\n'
+			totalNewlines += bytes.Count(chunk, []byte{'\n'})
+			lastByte = chunk[n-1]
 		}
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			return "", err
+			return strconv.Itoa(0), err
 		}
 	}
 
-	time.Sleep(58 * time.Millisecond)
-	return strconv.Itoa(totalLines), nil
+	// Если файл не пуст и последний байт не '\n', то последняя строка "неоконченная"
+	if lastByte != 0 && lastByte != '\n' {
+		return strconv.Itoa(totalNewlines + 1), nil
+	}
+	return strconv.Itoa(totalNewlines), nil
 }

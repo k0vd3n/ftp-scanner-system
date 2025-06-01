@@ -42,7 +42,6 @@ func main() {
 		zapLogger.Fatal("File-scanner-service: main: Ошибка загрузки конфига", zap.Error(err))
 	}
 
-	// instanceID := "instance"
 	instanceID := os.Getenv("POD_UID")
 	if instanceID == "" {
 		instanceID = os.Getenv("POD_NAME")
@@ -69,6 +68,7 @@ func main() {
 		mongoClient,
 		cfg.FileScanner.Mongo.MongoDb,
 		cfg.FileScanner.Mongo.MongoCollection,
+		zapLogger,
 	)
 
 	// Пытаемся загрузить ранее сохранённые метрики
@@ -110,6 +110,7 @@ func main() {
 		cfg.FileScanner.KafkaConsumer.Brokers,
 		cfg.FileScanner.KafkaConsumer.ConsumerTopic,
 		cfg.FileScanner.KafkaConsumer.ConsumerGroup,
+		zapLogger,
 	)
 	defer consumer.CloseReader()
 
@@ -118,6 +119,7 @@ func main() {
 	scanResultProducer, err := kafka.NewScanResultProducer(
 		cfg.FileScanner.KafkaScanResultProducer.Broker,
 		cfg.FileScanner.KafkaScanResultProducer.Routing,
+		zapLogger,
 	)
 	if err != nil {
 		zapLogger.Fatal("file-scanner-service: main: Ошибка создания Kafka scan result producer", zap.Error(err))
@@ -149,16 +151,11 @@ func main() {
 	// Создание обработчика Kafka
 	kafkaHandler := handler.NewKafkaHandler(fileScannerService, consumer, zapLogger, internalCancel)
 
-	// Настройка graceful shutdown
-	// stop := make(chan os.Signal, 1)
-	// signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
 	// 2) Контекст, отменяемый при OS-сигналах
 	signalCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 
 	// Запуск обработки сообщений
-	// ctx, cancel := context.WithCancel(context.Background())
 	zapLogger.Info("file-scanner-service: main: Запуск обработки сообщений")
 
 	go kafkaHandler.Start(internalCtx)

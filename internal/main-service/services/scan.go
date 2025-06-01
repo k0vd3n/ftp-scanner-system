@@ -7,24 +7,27 @@ import (
 	"ftp-scanner_try2/internal/kafka"
 	mainservice "ftp-scanner_try2/internal/main-service"
 	"ftp-scanner_try2/internal/models"
-	"log"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type KafkaScanService struct {
 	producer kafka.KafkaPoducerInterface
 	config   config.DirectoryListerKafkaConfig
+	logger   *zap.Logger
 }
 
-func NewKafkaScanService(producer kafka.KafkaPoducerInterface, config config.DirectoryListerKafkaConfig) *KafkaScanService {
+func NewKafkaScanService(producer kafka.KafkaPoducerInterface, config config.DirectoryListerKafkaConfig, logger *zap.Logger) *KafkaScanService {
 	return &KafkaScanService{
 		producer: producer,
 		config:   config,
+		logger:   logger,
 	}
 }
 
 func (s *KafkaScanService) StartScan(ctx context.Context, req models.ScanRequest) (*models.ScanResponse, error) {
-	log.Printf("Main-service: scan: startScan: Начало сканирования...")
+	s.logger.Info("Main-service: scan: startScan: Начало сканирования", zap.Any("request", req))
 	scanID := generateScanID()
 
 	msg := models.DirectoryScanMessage{
@@ -39,22 +42,22 @@ func (s *KafkaScanService) StartScan(ctx context.Context, req models.ScanRequest
 		},
 	}
 
-	log.Printf("Main-service: scan: startScan: Отправка Kafka сообщения: %v", msg)
+	s.logger.Info("Main-service: scan: startScan: Отправка Kafka сообщения", zap.Any("message", msg))
 
 	startKafka := time.Now()
 	if err := s.producer.SendMessage(s.config.DirectoriesToScanTopic, msg); err != nil {
-		log.Printf("Main-service: scan: startScan: Ошибка отправки Kafka сообщения: %v", err)
+		s.logger.Error("Main-service: scan: startScan: Ошибка отправки Kafka сообщения", zap.Error(err))
 		return nil, err
 	}
 	durationKafka := time.Since(startKafka).Seconds()
 	mainservice.KafkaPublishDuration.Observe(durationKafka)
 
-	log.Printf("Main-service: scan: startScan: Запрос на сканирование принят в обработку. scan_id=%s", scanID)
+	s.logger.Info("Main-service: scan: startScan: Сообщение отправлено в Kafka", zap.Any("message", msg))
 
 	return &models.ScanResponse{
-		ScanID:  scanID,
-		Status:  "accepted",
-		Message: "Запрос на сканирование принят в обработку.",
+		ScanID:    scanID,
+		Status:    "accepted",
+		Message:   "Запрос на сканирование принят в обработку.",
 		StartTime: time.Now().Format(time.RFC3339),
 	}, nil
 }

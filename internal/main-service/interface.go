@@ -12,8 +12,12 @@ type ScanService interface {
 }
 
 // Интерфейс сервиса отчетов (gRPC Report Client)
-type ReportService interface {
-	GetReport(ctx context.Context, scanID string) (*models.ReportResponse, error)
+type GenerateReportService interface {
+	GenerateReport(ctx context.Context, scanID string) (*models.ReportResponse, error)
+}
+
+type GetReportService interface {
+	GetReport(ctx context.Context, scanID string, dirPath string) (*models.DirectoryResponse, error)
 }
 
 // Интерфейс сервиса счетчиков (gRPC Status Client)
@@ -25,6 +29,14 @@ type StatusService interface {
 type MainServiceInterface interface {
 	StartScan(ctx context.Context, req models.ScanRequest) (*models.ScanResponse, error)
 	GetScanStatus(ctx context.Context, scanID string) (*models.StatusResponse, error)
-	GetReport(ctx context.Context, scanID string) (*models.ReportResponse, error)
+	GenerateReport(ctx context.Context, scanID string) (*models.ReportResponse, error)
+	GetReport(ctx context.Context, scanID string, dirPath string) (*models.DirectoryResponse, error)
+
+	HandleStartScan(w http.ResponseWriter, r *http.Request)
+	HandleGetScanStatus(w http.ResponseWriter, r *http.Request)
+	HandleGenerateReport(w http.ResponseWriter, r *http.Request)
+	HandleGetReport(w http.ResponseWriter, r *http.Request)
+	ApiHandleGetDirectory(w http.ResponseWriter, r *http.Request)
+
 	SetupRouter() *http.ServeMux
 }

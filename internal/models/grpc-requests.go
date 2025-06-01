@@ -8,7 +8,7 @@ type ReportRequestGRPC struct {
 // ReportResponseGRPC представляет собой GRPC-ответ с ссылкой на отчет.
 type ReportResponseGRPC struct {
 	ScanID    string `json:"scan_id"`    // Идентификатор сканирования
-	ReportURL string `json:"report_url"` // Ссылка на отчет
+	Message string `json:"message"` // Ссылка на отчет
 }
 
 // StatusRequestGRPC представляет собой GRPC-запрос на получение значений счетчиков.

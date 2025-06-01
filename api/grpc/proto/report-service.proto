@@ -14,5 +14,5 @@ message ReportRequest {
 
 message ReportResponse {
   string scan_id = 1;
-  string report_url = 2;
+  // string report_url = 2;
 }

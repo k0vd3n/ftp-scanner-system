@@ -6,24 +6,24 @@ import (
 	"fmt"
 	"ftp-scanner_try2/config"
 	"ftp-scanner_try2/internal/models"
-	"log"
 	"math"
 	"strconv"
 	"strings"
 
 	"github.com/segmentio/kafka-go"
+	"go.uber.org/zap"
 )
 
 type KafkaScanResultProducer struct {
-	writer *kafka.Writer
-	// topics       config.SizeBasedRouterTopics
+	writer       *kafka.Writer
 	routingRules config.RoutingConfig
+	logger       *zap.Logger
 }
 
 func NewScanResultProducer(
 	broker string,
 	routing config.RoutingConfig,
-	// topics config.SizeBasedRouterTopics,
+	logger *zap.Logger,
 ) (KafkaScanResultPoducerInterface, error) {
 	writer := &kafka.Writer{
 		Addr:         kafka.TCP(broker),
@@ -35,31 +35,37 @@ func NewScanResultProducer(
 	return &KafkaScanResultProducer{
 		writer:       writer,
 		routingRules: routing,
+		logger:       logger,
 	}, nil
 }
 
 func (k *KafkaScanResultProducer) SendMessage(message models.ScanResultMessage) error {
-	log.Printf("Scan-result-producer: Отправка сообщения в Kafka...")
+	k.logger.Info("Scan-result-producer: Отправка сообщения в Kafka", zap.Any("message", message))
 	topics := k.determineTopics(message)
-	log.Printf("Scan-result-producer: Топики: %v", topics)
+	k.logger.Info("Scan-result-producer: Топики", zap.Any("topics", topics))
 	for _, topic := range topics {
 		err := k.sendToTopic(topic, message)
 		if err != nil {
+			k.logger.Error("Scan-result-producer: Ошибка при отправке сообщения в Kafka", zap.Error(err))
 			return fmt.Errorf("scan-result-producer: Ошибка при отправке сообщения в Kafka %s: %v", topic, err)
 		}
-		log.Printf("Scan-result-producer: Сообщение отправлено в топик %s: %v", topic, message)
+		k.logger.Info("Scan-result-producer: Сообщение отправлено в топик",
+			zap.String("topic", topic),
+			zap.Any("message", message))
 	}
-	log.Printf("Scan-result-producer: Сообщения отправлены в топики %s: %v", topics, message)
+	k.logger.Info("Scan-result-producer: Сообщения отправлены в топики",
+		zap.Any("topics", topics),
+		zap.Any("message", message))
 	return nil
 }
 
 func (k *KafkaScanResultProducer) CloseWriter() error {
-	log.Println("Scan-result-producer: Закрытие Kafka-продусера...")
+	k.logger.Info("Scan-result-producer: Закрытие Kafka-продусера")
 	return k.writer.Close()
 }
 
 func (k *KafkaScanResultProducer) determineTopics(msg models.ScanResultMessage) []string {
-	log.Printf("Scan-result-producer: Определение топиков...")
+	k.logger.Info("Scan-result-producer: Определение топиков", zap.Any("msg", msg))
 	// Всегда добавляем топик по умолчанию
 	topics := []string{k.routingRules.DefaultTopic}
 
@@ -112,7 +118,7 @@ func (k *KafkaScanResultProducer) isRuleTriggered(rule config.RoutingRule, resul
 func (k *KafkaScanResultProducer) sendToTopic(topic string, msg models.ScanResultMessage) error {
 	jsonMsg, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("Scan-result-producer: Ошибка при сериализации сообщения: %v", err)
+		k.logger.Error("Scan-result-producer: Ошибка при сериализации сообщения в JSON", zap.Error(err))
 		return err
 	}
 

@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package report;
+
+option go_package = "/api/grpc/proto";
+
+// Сервис: единый метод для получения любой директории
+service GetReportService {
+  rpc GetDirectory(DirectoryRequest) returns (DirectoryResponse);
+}
+
+message DirectoryRequest {
+  string scan_id = 1;
+  string Path    = 2;
+}
+
+// Описание результата сканирования файла
+message ScanResult {
+  string Type   = 1;
+  string Result = 2;
+}
+
+// Описание файла
+message File {
+  string Path = 1;
+  repeated ScanResult ScanResults = 2;
+}
+
+// Описание директории
+message Directory {
+  string Directory = 1;
+  repeated Directory Subdirectory = 2;
+  repeated File Files = 3;
+}
+
+// Ответ: scan_id + нужная Directory
+message DirectoryResponse {
+  string scan_id = 1;
+  Directory Directory = 2;
+}
+

@@ -89,12 +89,15 @@ main_service:
     broker: "localhost:9092"
     directory_topic: "directories-to-scan"
   grpc:
-    report_server_address: "localhost"
-    report_server_port: ":50051"
+    get_report_server_address: "localhost"
+    get_report_server_port: ":50054"
+    generate_report_server_address: "localhost"
+    generate_report_server_port: ":50051"
     status_server_address: "localhost"
     status_server_port: ":50053"
   http:
     port: ":8080"
+    web_path: "web/index.html"
   metrics:
     instance: "instance"
     prom_http_port: ":2112"
@@ -131,11 +134,12 @@ scan_result_reducer_service:
     instance: "instance"
     prom_http_port: ":2115"
 
-report_service:
+generate_report_service:
   mongo: 
     mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
     mongo_db: "testdb"
-    mongo_collection: "scan_reports"
+    mongo_collection1: "scan_reports"
+    mongo_collection2: "final_scan_reports"
   grpc:
     server_port: ":50051"
   repository:
@@ -143,6 +147,19 @@ report_service:
   metrics:
     instance: "instance"
     prom_http_port: ":2112"
+
+get_report_service:
+  mongo: 
+    mongo_uri: "mongodb://testuser:testpassword@localhost:27017/?authSource=admin"
+    mongo_db: "testdb"
+    mongo_collection1: "scan_reports"
+    mongo_collection2: "final_scan_reports"
+  grpc:
+    server_port: ":50054"
+  metrics:
+    instance: "instance"
+    prom_http_port: ":2112"
+
 
 status_service: 
   mongo:

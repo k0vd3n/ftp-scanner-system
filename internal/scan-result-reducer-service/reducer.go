@@ -6,9 +6,10 @@ import (
 	"ftp-scanner_try2/internal/kafka"
 	"ftp-scanner_try2/internal/models"
 	"ftp-scanner_try2/internal/mongodb"
-	"log"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type ReducerService interface {
@@ -20,26 +21,33 @@ type reducerService struct {
 	repo     mongodb.SaveReportRepository
 	cfg      config.UnifiedConfig
 	consumer kafka.KafkaScanResultReducerConsumerInterface
+	logger   *zap.Logger
 }
 
-func NewReducerService(repo mongodb.SaveReportRepository, cfg config.UnifiedConfig, consumer kafka.KafkaScanResultReducerConsumerInterface) ReducerService {
+func NewReducerService(
+	repo mongodb.SaveReportRepository,
+	cfg config.UnifiedConfig,
+	consumer kafka.KafkaScanResultReducerConsumerInterface,
+	logger *zap.Logger,
+) ReducerService {
 	return &reducerService{
 		repo:     repo,
 		cfg:      cfg,
 		consumer: consumer,
+		logger:   logger,
 	}
 }
 
 func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) []models.ScanReport {
-	log.Println("scan-result-reducer-service reduce-scan-results: Начало редьюса результатов сканирования...")
+	r.logger.Info("scan-result-reducer-service reduce-scan-results: Начало редьюса результатов сканирования...")
 	start := time.Now()
 	scanMap := make(map[string]*models.ScanReport)
 
-	log.Printf("scan-result-reducer-service reduce-scan-results: Начало подсчета общего числа полученных отчетов для редьюса...")
+	r.logger.Info("scan-result-reducer-service reduce-scan-results: Начало подсчета общего числа полученных отчетов для редьюса...")
 	// Счётчики для директорий и файлов
 	var totalDirs, totalFiles int
 
-	log.Printf("scan-result-reducer-service reduce-scan-results: Количество сообщений: %d", len(messages))
+	r.logger.Info("scan-result-reducer-service reduce-scan-results: Начало редьюса результатов сканирования...")
 	for _, msg := range messages {
 		// Проверяем, существует ли отчет для данного scan_id
 		if _, exists := scanMap[msg.ScanID]; !exists {
@@ -139,7 +147,9 @@ func (r *reducerService) ReduceScanResults(messages []models.ScanResultMessage) 
 	duration := time.Since(start)
 	ProcessingDuration.Observe(duration.Seconds())
 	ReportsTotal.Add(float64(len(groupedResults)))
-	log.Printf("scan-result-reducer-service reduce-scan-results: Редьюс завершен. Количество отчетов: %d", len(groupedResults))
+	r.logger.Info("scan-result-reducer-service reduce-scan-results: Редьюс завершен",
+		zap.Int("reports", len(groupedResults)),
+		zap.Duration("duration", duration))
 	return groupedResults
 }
 
@@ -151,23 +161,23 @@ func (r *reducerService) Start(ctx context.Context) {
 			time.Duration(r.cfg.ScanResultReducer.Kafka.Duration)*time.Second,
 		)
 		if err != nil {
-			log.Printf("scan-result-reducer-service main: Ошибка чтения сообщений из Kafka: %v", err)
+			r.logger.Error("scan-result-reducer-service main: Ошибка чтения сообщений из Kafka", zap.Error(err))
 			continue
 		}
-		log.Printf("scan-result-reducer-service main: Получено %d сообщений", totalMessages)
+		r.logger.Info("scan-result-reducer-service main: Получено сообщений из Kafka", zap.Int("count", len(messages)))
 
 		if totalMessages > 0 {
 			ReceivedMessages.Add(float64(totalMessages))
-			log.Printf("scan-result-reducer-service main: Редьюс %d сообщений...", totalMessages)
+			r.logger.Info("scan-result-reducer-service main: Редьюс сообщений...", zap.Int("count", totalMessages))
 			reducedResults := r.ReduceScanResults(messages)
 			ReceivedMessagesKafkaHandler.Add(float64(totalMessages))
-			log.Printf("scan-result-reducer-service main: Сохранение %d сообщений в MongoDB...", len(reducedResults))
+			r.logger.Info("scan-result-reducer-service main: Редьюс сообщений завершен", zap.Int("count", len(reducedResults)))
 			if err := r.repo.InsertScanReports(ctx, reducedResults); err != nil {
-				log.Printf("scan-result-reducer-service main: Ошибка сохранения данных в MongoDB: %v", err)
+				r.logger.Error("scan-result-reducer-service main: Ошибка сохранения данных в MongoDB", zap.Error(err))
 				ErrorsTotal.Inc()
 			}
 
-			log.Printf("scan-result-reducer-service main: Сообщения отправлены в MongoDB")
+			r.logger.Info("scan-result-reducer-service main: Сообщения успешно сохранены в MongoDB", zap.Int("count", len(reducedResults)))
 		}
 	}
 }

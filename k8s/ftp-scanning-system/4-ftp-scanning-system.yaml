@@ -89,8 +89,10 @@ data:
         broker: "kafka-0.kafka-headless.staging.svc.cluster.local:9092"
         directory_topic: "directories-to-scan"
       grpc:
-        report_server_address: "report-service"
-        report_server_port: ":50051"
+        get_report_server_address: "get-report-service"
+        get_report_server_port: ":50054"
+        generate_report_server_address: "generate-report-service"
+        generate_report_server_port: ":50051"
         status_server_address: "status-service"
         status_server_port: ":50053"
       metrics:
@@ -98,6 +100,7 @@ data:
         prom_http_port: ":2112"
       http:
         port: ":8080"
+        web_path: "web/index.html"
     # Базовая конфигурация для counter_reducer_service.
     # Здесь используются переменные, которые будут переопределяться в разных деплойментах.
     counter_reducer_service:
@@ -134,18 +137,29 @@ data:
         mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
         mongo_db: "testdb"
         mongo_collection: "scan_reports"
-    report_service:
+    generate_report_service:
       metrics:
         instance: "instance"
         prom_http_port: ":2112"
       mongo: 
         mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
         mongo_db: "testdb"
-        mongo_collection: "scan_reports"
+        mongo_collection1: "scan_reports"
+        mongo_collection2: "final_scan_reports"
       grpc:
         server_port: ":50051"
       repository:
-        directory: "/home/k0vd3n/go/src/ftp-scanner_try2/reports"
+        directory: "/home/report-user/reports"
+    get_report_service:
+      mongo: 
+        mongo_uri: "mongodb://testuser:testpassword@mongodb:27017/?authSource=admin"
+        mongo_db: "testdb"
+        mongo_collection: "final_scan_reports"
+      grpc:
+        server_port: ":50054"
+      metrics:
+        instance: "instance"
+        prom_http_port: ":2112"
     status_service: 
       metrics:
         instance: "instance"
@@ -183,7 +197,7 @@ spec:
     spec:
       containers:
       - name: main-service
-        image: k0vd3n/main-service:v0.0.28
+        image: k0vd3n/main-service:v0.0.39
         ports:
         - name: http
           containerPort: 8080
@@ -220,7 +234,7 @@ metadata:
   name: directory-lister-service
   namespace: staging
 spec:
-  replicas: 15
+  replicas: 2
   selector:
     matchLabels:
       app: directory-lister-service
@@ -232,7 +246,7 @@ spec:
     spec:
       containers:
       - name: directory-lister-service
-        image: k0vd3n/directory-lister-service:v0.0.28
+        image: k0vd3n/directory-lister-service:v0.0.39
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -267,7 +281,7 @@ metadata:
   name: file-scanner-service
   namespace: staging
 spec:
-  replicas: 40
+  replicas: 2
   selector:
     matchLabels:
       app: file-scanner-service
@@ -305,7 +319,7 @@ spec:
           mountPath: /app/config
       containers:
       - name: file-scanner-service
-        image: k0vd3n/file-scanner-service:v0.0.28
+        image: k0vd3n/file-scanner-service:v0.0.39
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -372,7 +386,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.28
+        image: k0vd3n/counter-reducer-service:v0.0.39
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -429,7 +443,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.28
+        image: k0vd3n/counter-reducer-service:v0.0.39
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -486,7 +500,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.28
+        image: k0vd3n/counter-reducer-service:v0.0.39
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -543,7 +557,7 @@ spec:
             mountPath: /app/config
       containers:
       - name: counter-reducer-service
-        image: k0vd3n/counter-reducer-service:v0.0.28
+        image: k0vd3n/counter-reducer-service:v0.0.39
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -578,7 +592,7 @@ spec:
     spec:
       containers:
       - name: scan-result-reducer-service
-        image: k0vd3n/scan-result-reducer-service:v0.0.28
+        image: k0vd3n/scan-result-reducer-service:v0.0.39
         ports:
         - name: http-metrics
           containerPort: 2112
@@ -612,7 +626,7 @@ spec:
     spec:
       containers:
       - name: status-service
-        image: k0vd3n/status-service:v0.0.28
+        image: k0vd3n/status-service:v0.0.39
         ports:
         - name: grpc 
           containerPort: 50053
@@ -646,22 +660,22 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: report-service
+  name: generate-report-service
   namespace: staging
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: report-service
+      app: generate-report-service
   template:
     metadata:
       labels:
-        app: report-service
+        app: generate-report-service
         component: ftp-scanner
     spec:
       containers:
-      - name: report-service
-        image: k0vd3n/report-service:v0.0.28
+      - name: generate-report-service
+        image: k0vd3n/report-service:v0.0.39
         ports:
         - name: grpc
           containerPort: 50051
@@ -682,15 +696,64 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: report-service
+  name: generate-report-service
   namespace: staging
 spec:
   selector:
-    app: report-service
+    app: generate-report-service
   ports:
   - name: grpc
     port: 50051
     targetPort: 50051
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: get-report-service
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: get-report-service
+  template:
+    metadata:
+      labels:
+        app: get-report-service
+        component: ftp-scanner
+    spec:
+      containers:
+      - name: get-report-service
+        image: k0vd3n/get-report-service:v0.0.39
+        ports:
+        - name: grpc
+          containerPort: 50054
+        - name: http-metrics
+          containerPort: 2112
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config/config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: config-volume
+        configMap:
+          name: ftp-scanner-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: get-report-service
+  namespace: staging
+spec:
+  selector:
+    app: get-report-service
+  ports:
+  - name: grpc
+    port: 50054
+    targetPort: 50054
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor

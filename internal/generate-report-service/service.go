@@ -6,42 +6,65 @@ import (
 	"ftp-scanner_try2/internal/mongodb"
 	"log"
 	"time"
+
+	"go.uber.org/zap"
 )
 
-type ReportServiceInterface interface {
-	GenerateReport(ctx context.Context, scanID string) (string, error)
+type GenerateReportServiceInterface interface {
+	GenerateReport(ctx context.Context, scanID string) error
+	SaveReport(ctx context.Context, data models.ScanReport) error
 }
 
-type ReportService struct {
-	repo    mongodb.ReportRepository
+type GenerateReportService struct {
+	repo    mongodb.GenerateReportRepository
 	storage ReportStorage
+	logger  *zap.Logger
 }
 
-func NewReportService(repo mongodb.ReportRepository, storage ReportStorage) *ReportService {
-	return &ReportService{repo: repo, storage: storage}
+func NewGenerateReportService(repo mongodb.GenerateReportRepository, storage ReportStorage, logger *zap.Logger) *GenerateReportService {
+	return &GenerateReportService{repo: repo, storage: storage, logger: logger}
 }
 
-func (s *ReportService) GenerateReport(ctx context.Context, scanID string) (string, error) {
-	log.Printf("scan-reports-service service: getReport: Получение отчета для scan_id=%s", scanID)
+func (s *GenerateReportService) GenerateReport(ctx context.Context, scanID string) error {
+	s.logger.Info("scan-reports-service service: getReport: Получение отчета для scan_id=" + scanID)
 	reports, err := s.repo.GetReportsByScanID(ctx, scanID)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	log.Printf("scan-reports-service service: getReport: Группировка результатов сканирования в отчет для scan_id=%s", scanID)
+	s.logger.Info("scan-reports-service service: getReport: Получение отчета для scan_id=" + scanID + " завершено")
 	groupedData := groupScanResults(reports)
 
-	log.Printf("scan-reports-service service: getReport: Сохранение отчета для scan_id=%s", scanID)
+	if len(groupedData) == 0 {
+		s.logger.Info("scan-reports-service service: getReport: Нет данных для scan_id=" + scanID)
+		return nil
+	}
+
+	// Перед сохранением заполним поле CreatedAt
+	finalReport := groupedData[0]
+	finalReport.CreatedAt = time.Now()
+
+	s.logger.Info("scan-reports-service service: getReport: Сохранение отчета для scan_id=" + scanID + " начато")
 	storageStart := time.Now()
-	reportUrl, err := s.storage.SaveReport(scanID, groupedData)
+	err = s.SaveReport(ctx, finalReport)
 	storageDuration := float64(time.Since(storageStart).Milliseconds())
 	ReportStorageDuration.Observe(storageDuration)
 	if err != nil {
 		ReportErrorsTotal.Inc()
-		return "", err
+		return err
 	}
-	
-	return reportUrl, nil
+
+	return nil
+}
+
+func (s *GenerateReportService) SaveReport(ctx context.Context, data models.ScanReport) error {
+	s.logger.Info("scan-reports-service service: saveReport: Сохранение отчета для scan_id=" + data.ScanID)
+	if err := s.repo.SaveResult(ctx, data); err != nil {
+		s.logger.Error("scan-reports-service service: saveReport: Ошибка сохранения отчета в базу данных", zap.Error(err))
+		return err
+	}
+	s.logger.Info("scan-reports-service service: saveReport: Сохранение отчета для scan_id=" + data.ScanID + " завершено")
+	return nil
 }
 
 // Функция группировки сообщений

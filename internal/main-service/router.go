@@ -9,7 +9,9 @@ func (s *MainServer) SetupRouter() *http.ServeMux {
 
 	router.HandleFunc("/scan/start", s.HandleStartScan)
 	router.HandleFunc("/scan/status", s.HandleGetScanStatus)
-	router.HandleFunc("/scan/report", s.HandleGetReport)
+	router.HandleFunc("/scan/generate-report", s.HandleGenerateReport)
+	router.HandleFunc("/scan/get-report", s.HandleGetReport)
+	router.HandleFunc("/api/report", s.ApiHandleGetDirectory)
 
 	return router
 }

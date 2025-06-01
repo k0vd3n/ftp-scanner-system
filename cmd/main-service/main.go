@@ -3,6 +3,9 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"ftp-scanner_try2/api/grpc/proto"
 	"ftp-scanner_try2/config"
@@ -18,11 +21,6 @@ import (
 )
 
 func main() {
-	log.Printf("Main-service: main: Запуск Main-service...")
-	cfg, err := config.LoadUnifiedConfig("config/config.yaml")
-	if err != nil {
-		log.Fatalf("Ошибка загрузки конфига: %v", err)
-	}
 
 	// Инициализируем логгер и добавляем служебное поле для сервиса
 	zapLogger, err := logger.InitLogger()
@@ -33,6 +31,14 @@ func main() {
 	zapLogger = zapLogger.With(zap.String("service", "directory-lister-service"))
 	defer zapLogger.Sync()
 
+	zapLogger.Info("Main-service: main: Запуск Main-service")
+	zapLogger.Info("Main-service: main: Загрузка конфигурации...")
+
+	// Загружаем unified config
+	cfg, err := config.LoadUnifiedConfig("config/config.yaml")
+	if err != nil {
+		log.Fatalf("Ошибка загрузки конфига: %v", err)
+	}
 	mainservice.InitMetrics(cfg.MainService.Metrics.InstanceLabel)
 	// mainservice.StartPushLoop(&cfg.PushGateway)
 	go func() {
@@ -43,7 +49,8 @@ func main() {
 		}
 	}()
 
-	grpcReportServerAddress := cfg.MainService.GRPC.ReportServerAddress + cfg.MainService.GRPC.ReportServerPort
+	grpcGenerateReportServerAddress := cfg.MainService.GRPC.GeneateReportServerAddress + cfg.MainService.GRPC.GenerateReportServerPort
+	grpcGetReportServerAddress := cfg.MainService.GRPC.GetReportServerAddress + cfg.MainService.GRPC.GetReportServerPort
 	grpcStatusServerAddress := cfg.MainService.GRPC.StatusServerAddress + cfg.MainService.GRPC.StatusServerPort
 
 	log.Printf("Main-service: main: Инициализация Kafka Producer...")
@@ -58,11 +65,17 @@ func main() {
 	// Создаем gRPC соединения
 	creds := insecure.NewCredentials()
 
-	reportConn, err := grpc.NewClient(grpcReportServerAddress, grpc.WithTransportCredentials(creds))
+	generateReportConn, err := grpc.NewClient(grpcGenerateReportServerAddress, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		log.Fatalf("Main-service: main: Ошибка соединения с Report Service: %v", err)
 	}
-	defer reportConn.Close()
+	defer generateReportConn.Close()
+
+	getReportConn, err := grpc.NewClient(grpcGetReportServerAddress, grpc.WithTransportCredentials(creds))
+	if err != nil {
+		log.Fatalf("Main-service: main: Ошибка соединения с Report Service: %v", err)
+	}
+	defer getReportConn.Close()
 
 	statusConn, err := grpc.NewClient(grpcStatusServerAddress, grpc.WithTransportCredentials(creds))
 	if err != nil {
@@ -75,13 +88,14 @@ func main() {
 	configScanDirTopic := config.DirectoryListerKafkaConfig{
 		DirectoriesToScanTopic: cfg.MainService.Kafka.DirectoryTorpic,
 	}
-	scanService := service.NewKafkaScanService(kafkaProducer, configScanDirTopic)
-	reportService := service.NewGRPCReportService(proto.NewReportServiceClient(reportConn))
-	statusService := service.NewGRPCStatusService(proto.NewStatusServiceClient(statusConn))
+	scanService := service.NewKafkaScanService(kafkaProducer, configScanDirTopic, zapLogger)
+	generateReportService := service.NewGRPCReportService(proto.NewReportServiceClient(generateReportConn), zapLogger)
+	getReportService := service.NewGRPCGetReportService(proto.NewGetReportServiceClient(getReportConn), zapLogger)
+	statusService := service.NewGRPCStatusService(proto.NewStatusServiceClient(statusConn), zapLogger)
 
 	log.Printf("Main-service: main: Инициализация MainServer...")
 	// Создаем MainServer
-	server := mainservice.NewMainServer(scanService, reportService, statusService)
+	server := mainservice.NewMainServer(scanService, generateReportService, getReportService, statusService, zapLogger, cfg.MainService)
 
 	log.Printf("Main-service: main: Настройка роутера...")
 	// Настройка роутера
@@ -93,4 +107,9 @@ func main() {
 	if err := http.ListenAndServe(cfg.MainService.HTTP.Port, router); err != nil {
 		log.Fatalf("Main-service: main: Ошибка запуска HTTP сервера: %v", err)
 	}
+
+	// Настройка graceful shutdown
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
 }

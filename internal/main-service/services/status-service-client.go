@@ -4,40 +4,44 @@ import (
 	"context"
 	"ftp-scanner_try2/api/grpc/proto"
 	"ftp-scanner_try2/internal/models"
-	"log"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type GRPCCounterService struct {
 	client proto.StatusServiceClient
+	logger *zap.Logger
 }
 
-func NewGRPCStatusService(client proto.StatusServiceClient) *GRPCCounterService {
-	return &GRPCCounterService{client: client}
+func NewGRPCStatusService(client proto.StatusServiceClient, logger *zap.Logger) *GRPCCounterService {
+	return &GRPCCounterService{client: client, logger: logger}
 }
 
 func (s *GRPCCounterService) GetScanStatus(ctx context.Context, scanID string) (*models.StatusResponse, error) {
-	log.Printf("Main-service: counter-client: getScanStatus: Получение статуса сканирования для scan_id=%s", scanID)
+	s.logger.Info("Main-service: counter-client: getScanStatus: Попытка получения статуса сканирования для scan_id=" + scanID)
 
 	counters, err := s.client.GetStatus(ctx, &proto.StatusRequest{ScanId: scanID})
 	if err != nil {
-		log.Printf("MainService: counter-client: getScanStatus: Ошибка получения счетчиков для scan_id=%s: %v", scanID, err)
+		s.logger.Error("Main-service: counter-client: getScanStatus: Ошибка получения статуса сканирования для scan_id="+scanID, zap.Error(err))
 		return nil, err
 	}
 
-	log.Printf("Main-service: counter-client: getScanStatus: Счетчики получены для scan_id=%s: %+v", scanID, counters)
+	s.logger.Info("Main-service: counter-client: getScanStatus: Статус сканирования получен для scan_id="+scanID,
+		zap.Any("counters", counters))
 
 	directoriesFound := int(counters.GetDirectoriesCount())
 	filesScanned := int(counters.GetCompletedFiles())
 	directoriesScanned := int(counters.GetCompletedDirectories())
 	filesFound := int(counters.GetFilesCount())
-	log.Printf("Main-service: counter-client: getScanStatus: directoriesScanned=%d", directoriesScanned)
-	log.Printf("Main-service: counter-client: getScanStatus: filesScanned=%d", filesScanned)
-	log.Printf("Main-service: counter-client: getScanStatus: directoriesFound=%d", directoriesFound)
-	log.Printf("Main-service: counter-client: getScanStatus: filesFound=%d", filesFound)
+	s.logger.Info("Main-service: counter-client: getScanStatus: Сканирование завершено для scan_id="+scanID,
+		zap.Any("directoriesFound", directoriesFound),
+		zap.Any("filesScanned", filesScanned),
+		zap.Any("directoriesScanned", directoriesScanned),
+		zap.Any("filesFound", filesFound))
 
 	if directoriesScanned == directoriesFound+1 && filesScanned == filesFound {
-		log.Printf("Main-service: counter-client: getScanStatus: Сканирование завершено для scan_id=%s", scanID)
+		s.logger.Info("Main-service: counter-client: getScanStatus: Сканирование завершено для scan_id=" + scanID)
 		return &models.StatusResponse{
 			ScanID:             scanID,
 			Status:             "completed",
@@ -48,7 +52,7 @@ func (s *GRPCCounterService) GetScanStatus(ctx context.Context, scanID string) (
 			StartTime:          time.Now().Format(time.RFC3339),
 		}, nil
 	} else {
-		log.Printf("Main-service: counter-client: getScanStatus: Сканирование в процессе для scan_id=%s", scanID)
+		s.logger.Info("Main-service: counter-client: getScanStatus: Сканирование в процессе для scan_id=" + scanID)
 		return &models.StatusResponse{
 			ScanID:             scanID,
 			Status:             "in_progress",

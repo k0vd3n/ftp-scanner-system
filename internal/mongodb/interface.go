@@ -6,8 +6,13 @@ import (
 	"ftp-scanner_try2/internal/models"
 )
 
-type ReportRepository interface {
+type GenerateReportRepository interface {
 	GetReportsByScanID(ctx context.Context, scanID string) ([]models.ScanReport, error)
+	SaveResult(ctx context.Context, report models.ScanReport) error
+}
+
+type GetReportRepository interface {
+	GetReport(ctx context.Context, scanID string) (*models.ScanReport, error)
 }
 
 type GetCounterRepository interface {
@@ -23,6 +28,6 @@ type SaveReportRepository interface {
 }
 
 type MetricRepository interface {
-    Save(ctx context.Context, instance string, payload []byte) error
-    Load(ctx context.Context, instance string) ([]byte, error)
+	Save(ctx context.Context, instance string, payload []byte) error
+	Load(ctx context.Context, instance string) ([]byte, error)
 }

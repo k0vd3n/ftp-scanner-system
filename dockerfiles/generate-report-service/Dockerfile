@@ -14,8 +14,8 @@ RUN go mod download
 # Копируем весь проект (считаем, что контекст сборки — корень репозитория)
 COPY . .
 
-# Собираем бинарный файл для сервиса main-service
-RUN CGO_ENABLED=0 go build -o main-service ./cmd/main-service/main.go
+# Собираем бинарный файл для сервиса generate-report-service
+RUN CGO_ENABLED=0 go build -o generate-report-service ./cmd/generate-report-service/main.go
 
 # Этап финального образа: используем минимальный образ Alpine
 FROM alpine:latest
@@ -23,12 +23,11 @@ FROM alpine:latest
 WORKDIR /app
 
 # Копируем скомпилированный бинарник и необходимые файлы (например, конфигурацию)
-COPY --from=builder /app/internal/web ./web
-COPY --from=builder /app/main-service .
+COPY --from=builder /app/generate-report-service .
 COPY --from=builder /app/config/config.yaml ./config/config.yaml
 
 # Открываем порт, указанный в конфиге (например, 8080)
 EXPOSE 8080
 
 # Запускаем собранный сервис
-ENTRYPOINT ["./main-service"]
+ENTRYPOINT ["./generate-report-service"]

@@ -305,7 +305,7 @@ spec:
     spec:
       containers:
       - name: grafana
-        image: grafana/grafana:latest
+        image: grafana/grafana:11.6.1
         ports:
         - containerPort: 3000
         env:
@@ -331,6 +331,73 @@ spec:
   selector:
     app: grafana
 ---
+
+
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: staging
+  name: grafana-datasources-2
+data:
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+      - name: prometheus-operated
+        type: prometheus
+        access: proxy
+        url: http://prometheus-operated.monitoring:9090
+        isDefault: true
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  namespace: staging
+  name: grafana-2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana-2
+  template:
+    metadata:
+      namespace: staging
+      labels:
+        app: grafana-2
+    spec:
+      containers:
+      - name: grafana-2
+        image: grafana/grafana:11.6.1
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin"
+        volumeMounts:
+        - name: grafana-datasources-2
+          mountPath: /etc/grafana-2/provisioning/datasources
+      volumes:
+      - name: grafana-datasources-2
+        configMap:
+          name: grafana-datasources-2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: staging
+  name: grafana-2
+spec:
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: grafana-2
+---
+
+
+
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -341,6 +408,7 @@ data:
     // Инициализация базы данных testdb и создание коллекций
     db = new Mongo().getDB("testdb");
     db.createCollection("scan_reports");
+    db.createCollection("final_scan_reports");
     db.createCollection("scan_directories_count");
     db.createCollection("scan_files_count");
     db.createCollection("completed_directories_count");

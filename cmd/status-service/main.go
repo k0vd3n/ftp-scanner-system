@@ -4,65 +4,75 @@ import (
 	"context"
 	"ftp-scanner_try2/api/grpc/proto"
 	"ftp-scanner_try2/config"
+	"ftp-scanner_try2/internal/logger"
 	"ftp-scanner_try2/internal/mongodb"
 	statusservice "ftp-scanner_try2/internal/status-service"
-	"log"
 	"net"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
 func main() {
-	log.Printf("Counter Service: main: Запуск Counter Service...")
-	log.Printf("Counter Service: main: Загрузка конфигурации...")
+	// Инициализация логгера
+	zapLogger, err := logger.InitLogger()
+	if err != nil {
+		panic("Не удалось инициализировать логгер: " + err.Error())
+	}
+
+	zapLogger = zapLogger.With(zap.String("service", "status-service"))
+	zapLogger.Info("Counter Service: main: Запуск Counter Service")
+	zapLogger.Info("Counter Service: main: Загрузка конфигурации...")
 
 	// Загружаем unified config
 	cfg, err := config.LoadUnifiedConfig("config/config.yaml")
 	if err != nil {
-		log.Fatalf("Counter Service: main: Ошибка загрузки конфига: %v", err)
+		zapLogger.Fatal("Counter Service: main: Ошибка загрузки конфига", zap.Error(err))
 	}
 
 	statusservice.InitMetrics(cfg.StatusService.Metrics.InstanceLabel)
 	go func() {
-		log.Printf("Запуск HTTP-сервера для метрик на порту %s", cfg.StatusService.Metrics.PromHttpPort)
+		zapLogger.Info("Counter Service: main: Запуск HTTP-сервера для метрик", zap.String("port", cfg.StatusService.Metrics.PromHttpPort))
 		http.Handle("/metrics", promhttp.Handler())
 		if err := http.ListenAndServe(cfg.StatusService.Metrics.PromHttpPort, nil); err != nil {
-			log.Fatalf("Ошибка HTTP-сервера для метрик: %v", err)
+			zapLogger.Fatal("Counter Service: main: Ошибка HTTP-сервера для метрик", zap.Error(err))
 		}
 	}()
 
-	log.Printf("Counter Service: main: mongoUri: %s", cfg.StatusService.Mongo.MongoUri)
+	zapLogger.Info("Counter Service: main: Подключение к MongoDB...", zap.String("uri", cfg.StatusService.Mongo.MongoUri))
 
-	log.Printf("Counter Service: main: mongoURI: %s", cfg.StatusService.Mongo.MongoUri)
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(cfg.StatusService.Mongo.MongoUri))
 	if err != nil {
-		log.Fatalf("Ошибка подключения к MongoDB: %v", err)
+		zapLogger.Fatal("Counter Service: main: Ошибка подключения к MongoDB", zap.Error(err))
 	}
 	defer client.Disconnect(context.TODO())
 
-	repo := mongodb.NewMongoCounterRepository(client, cfg.StatusService.Mongo.MongoDb)
-	service := statusservice.NewStatusService(repo)
-	log.Printf("Counter Service: main: коллекция scan_directories_count: %s", cfg.StatusService.Mongo.ScanDirectoriesCount)
-	log.Printf("Counter Service: main: коллекция scan_files_count: %s", cfg.StatusService.Mongo.ScanFilesCount)
-	log.Printf("Counter Service: main: коллекция completed_directories_count: %s", cfg.StatusService.Mongo.CompletedDirectoriesCount)
-	log.Printf("Counter Service: main: коллекция completed_files_count: %s", cfg.StatusService.Mongo.CompletedFilesCount)
+	repo := mongodb.NewMongoCounterRepository(client, cfg.StatusService.Mongo.MongoDb, zapLogger)
+	service := statusservice.NewStatusService(repo, zapLogger)
 
-	server := statusservice.NewStatusServer(service, cfg.StatusService.Mongo)
+	zapLogger.Info("Counter Service: main: Подключаемые коллекции",
+		zap.String("scan_directories_count", cfg.StatusService.Mongo.ScanDirectoriesCount),
+		zap.String("scan_files_count", cfg.StatusService.Mongo.ScanFilesCount),
+		zap.String("completed_directories_count", cfg.StatusService.Mongo.CompletedDirectoriesCount),
+		zap.String("completed_files_count", cfg.StatusService.Mongo.CompletedFilesCount))
+
+	server := statusservice.NewStatusServer(service, cfg.StatusService.Mongo, zapLogger)
 
 	lis, err := net.Listen("tcp", cfg.StatusService.Grpc.Port)
 	if err != nil {
-		log.Fatalf("Counter Service: main: Ошибка прослушивания порта: %v", err)
+		zapLogger.Fatal("Counter Service: main: Ошибка прослушивания порта", zap.Error(err))
 	}
 
 	grpcServer := grpc.NewServer()
+
 	proto.RegisterStatusServiceServer(grpcServer, server)
 
-	log.Printf("Counter Service: main: Сервис счетчиков запущен на порте %s", cfg.StatusService.Grpc.Port)
+	zapLogger.Info("Counter Service: main: Сервис счетчиков запущен на порте", zap.String("port", cfg.StatusService.Grpc.Port))
 	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("Counter Service: main: Ошибка запуска сервиса: %v", err)
+		zapLogger.Fatal("Counter Service: main: Ошибка запуска сервиса", zap.Error(err))
 	}
 }
